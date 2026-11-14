@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SPH for wave energy converters</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Arimo:wght@400;700&family=IBM+Plex+Mono:wght@400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<style>
+/* Palette: the colours of the paper's figures */
+:root {
+  color-scheme: light;
+  --bg: #FBFBFA;
+  --surface: #FFFFFF;
+  --ink: #16191D;
+  --title: #16191D;
+  --muted: #5E6670;
+  --faint: #8A929B;
+  --rule: #D9DCE0;
+  --hair: #16191D;
+  --link: #AEB4BB;
+  --band: #EEF0F2;
+  --accent: #1F4E79;
+  --owsc: #1F77B4; --pa: #2CA02C; --owc: #D62728; --wa: #9467BD;
+  --tmp: #8C564B; --tbw: #E377C2; --owec: #FF7F0E; --other: #7F7F7F;
+  --g1: #1F4E79; --g2: #B85C00; --g3: #6A3D9A; --g4: #2E6B30; --g5: #8B1E1E; --g6: #5E6670;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --display: Arial, "Helvetica Neue", Helvetica, "Arimo", sans-serif;
+  --text: var(--display);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #111417; --surface: #171B1F; --ink: #E6E8EA; --title: #F2F3F4; --muted: #A0A8B0; --faint: #78818A;
+    --rule: #2C3238; --hair: #E6E8EA; --link: #4E575F; --band: #22282E; --accent: #8DB8E0;
+    --owsc: #4A9BD6; --pa: #4CBF4C; --owc: #EF5350; --wa: #B08FD4;
+    --tmp: #B07C6F; --tbw: #EE9BD5; --owec: #FF9A3D; --other: #9A9A9A;
+    --g1: #8DB8E0; --g2: #F0A050; --g3: #B79AD8; --g4: #7CC47F; --g5: #E07B7B; --g6: #A0A8B0;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #111417; --surface: #171B1F; --ink: #E6E8EA; --title: #F2F3F4; --muted: #A0A8B0; --faint: #78818A;
+  --rule: #2C3238; --hair: #E6E8EA; --link: #4E575F; --band: #22282E; --accent: #8DB8E0;
+  --owsc: #4A9BD6; --pa: #4CBF4C; --owc: #EF5350; --wa: #B08FD4;
+  --tmp: #B07C6F; --tbw: #EE9BD5; --owec: #FF9A3D; --other: #9A9A9A;
+  --g1: #8DB8E0; --g2: #F0A050; --g3: #B79AD8; --g4: #7CC47F; --g5: #E07B7B; --g6: #A0A8B0;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+/* One family for titles and text; mono only for numbers and small labels.
+   Spacing on an 8 px rhythm. Rules: black hairline = start of a section, grey = division within it. */
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: var(--display); font-size: 15px; line-height: 1.6;
+}
+a { color: var(--accent); text-underline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.page { max-width: 1280px; margin: 0 auto; padding: 0 24px; }
+.small-label, .kicker, .fig-num, nav button .num, .frame-foot, dt, .card h3, .group-head, .axis text {
+  font-family: var(--mono); font-size: 11px; font-weight: 400; letter-spacing: 0.06em; text-transform: uppercase;
+}
+
+/* Masthead */
+.masthead .page { padding-top: 48px; }
+.kicker { margin: 0 0 16px; color: var(--muted); }
+h1 { margin: 0; font-family: var(--display); font-weight: 400; font-size: clamp(2.2rem, 4.4vw, 3.4rem);
+     line-height: 1.08; letter-spacing: -0.02em; color: var(--title); }
+.lead { margin: 16px 0 0; color: var(--muted); max-width: 62ch; font-size: 1.05rem; }
+
+/* Views: folder tabs attached to the panel below. The active tab joins the panel;
+   the others sit behind it, in grey. */
+nav { display: flex; align-items: flex-end; gap: 4px; margin-top: 40px; padding-left: 16px;
+      border-bottom: 1px solid var(--hair); overflow-x: auto; overflow-y: hidden; }
+nav button {
+  font: inherit; font-size: 14px; color: var(--muted); background: var(--band); cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--rule); border-bottom: none; border-radius: 4px 4px 0 0;
+  padding: 9px 18px 8px; margin-bottom: 0; display: inline-flex; align-items: baseline; gap: 8px;
+  position: relative; top: 0; transition: background 0.15s ease, color 0.15s ease, top 0.15s ease;
+}
+nav button .num { font-family: var(--mono); font-size: 11px; color: var(--faint); }
+nav button .name { font-weight: 700; }
+nav button:hover { color: var(--ink); background: var(--rule); top: -2px; }
+nav button[aria-selected="true"] {
+  color: var(--ink); background: var(--surface); border-color: var(--hair); cursor: default;
+  padding: 12px 20px 11px; top: 1px; z-index: 1;                 /* covers the line: joined to the panel */
+}
+nav button[aria-selected="true"] .num { color: var(--ink); }
+
+/* The panel the tabs belong to */
+.layout { background: var(--surface); border: 1px solid var(--hair); border-top: none; padding: 24px 24px 20px; }
+
+/* Figure: title block across the width; chart and panel start on the same rule */
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; column-gap: 32px; align-items: start; margin-top: 0; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+.frame-head { grid-column: 1 / -1; padding-bottom: 16px; }
+.frame { margin: 0; }
+.fig-num { margin: 0 0 8px; color: var(--faint); }
+.frame-head h2 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.6rem; line-height: 1.25;
+                 letter-spacing: -0.01em; color: var(--title); }
+.note { margin: 8px 0 0; color: var(--muted); max-width: 80ch; }
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 24px; margin-top: 16px; }
+.controls:has(#toggle-wrap[hidden]):has(#chips[hidden]):has(#figpick[hidden]) { display: none; }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); white-space: nowrap; cursor: pointer; }
+.toggle[hidden] { display: none; }
+#chart { background: var(--surface); border-top: 1px solid var(--hair); }
+#chart svg { display: block; width: 100%; height: auto; touch-action: none; }
+#chart text { font-family: var(--display); fill: var(--ink); }
+.empty-state { padding: 48px 24px; color: var(--muted); text-align: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 24px; font-size: 13px; color: var(--muted);
+          padding: 12px 0; border-top: 1px solid var(--rule); }
+.legend span { display: inline-flex; align-items: center; gap: 8px; }
+.frame-foot { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; padding: 8px 0 0;
+              border-top: 1px solid var(--rule); color: var(--faint); text-transform: none; letter-spacing: 0.02em; }
+.frame-foot strong { color: var(--muted); font-weight: 400; text-transform: uppercase; letter-spacing: 0.06em; }
+
+/* Chart marks */
+.edge { fill: none; stroke: var(--link); stroke-width: 1; stroke-opacity: 0.6; }
+.study { stroke: var(--surface); stroke-width: 1.2px; cursor: grab; }
+.hub { fill: var(--surface); stroke: var(--ink); stroke-width: 1.4px; cursor: grab; }
+.selected { stroke: var(--ink); stroke-width: 2.8px; }
+.hub.selected { stroke: var(--accent); stroke-width: 3.2px; }
+.label { font-size: 12px; font-weight: 700; pointer-events: none;
+         paint-order: stroke; stroke: var(--surface); stroke-width: 4px; stroke-linejoin: round; }
+.axis text { fill: var(--muted); text-transform: none; letter-spacing: 0; }
+.axis path, .axis line { stroke: var(--rule); }
+.year-grid line { stroke: var(--rule); stroke-dasharray: 2 4; }
+.xlink { fill: none; stroke-width: 1.2; }
+.row-label { font-size: 12.5px; cursor: pointer; }
+#chart .group-head { font-family: var(--mono); }
+
+.swatch { width: 0.62rem; height: 0.62rem; border-radius: 50%; display: inline-block; }
+.swatch.hub-swatch { background: var(--surface); border: 1.4px solid var(--ink); width: 0.78rem; height: 0.78rem; }
+.line-sample { display: inline-block; width: 1.6rem; height: 0; border-top: 2px solid var(--muted); }
+.line-sample.dashed { border-top-style: dashed; }
+.chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.chips[hidden] { display: none; }
+.chip { font: inherit; font-size: 13px; border: 1px solid var(--rule); background: var(--surface); color: var(--muted);
+        border-radius: 0; padding: 0.2rem 0.65rem 0.2rem 0.5rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+.chip[aria-pressed="true"] { color: var(--ink); border-color: var(--hair); }
+.chip[aria-pressed="false"] .swatch { opacity: 0.3; }
+
+/* Side panel */
+.card { position: relative; border-top: 1px solid var(--hair); padding: 16px 0; }
+@media (min-width: 901px) { .card { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow-y: auto; } }
+@media (max-width: 900px) { .card { margin-top: 24px; } }
+.card .hint { color: var(--muted); margin: 0; }
+.card h2 { margin: 0 24px 8px 0; font-family: var(--display); font-weight: 400; font-size: 1.25rem; line-height: 1.3; color: var(--title); }
+.card h3 { color: var(--faint); margin: 16px 0 8px; padding-top: 8px; border-top: 1px solid var(--rule); }
+.card p { margin: 0 0 8px; }
+.card .meta { color: var(--muted); font-size: 14px; }
+.card .close { position: absolute; top: 12px; right: 0; font: inherit; font-size: 20px; line-height: 1;
+               background: none; border: none; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.card details summary { cursor: pointer; margin: 8px 0; }
+.card ul { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.card li button { font: inherit; color: var(--accent); background: none; border: none; padding: 2px 0; cursor: pointer; text-align: left; }
+.card li button:hover { text-decoration: underline; }
+.card button.inline { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 8px 0 0; font-size: 14px; }
+dt { color: var(--faint); padding-top: 3px; }
+dd { margin: 0; }
+
+.legend .math, .legend .math span { display: inline; gap: 0; }
+.math sub { font-size: 0.72em; line-height: 0; }
+nav[hidden] { display: none; }
+nav[hidden] + .layout { border-top: 1px solid var(--hair); margin-top: 32px; }
+.tip { position: fixed; z-index: 10; pointer-events: none; background: var(--ink); color: var(--bg);
+       font-size: 13px; padding: 4px 8px; border-radius: 3px; white-space: nowrap; }
+.tip[hidden] { display: none; }
+.mark { cursor: pointer; }
+.mark.selected-mark { stroke: var(--ink); stroke-width: 2.4px; }
+.nodata { fill: var(--rule); opacity: 0.6; }
+footer { color: var(--muted); font-size: 13px; padding: 16px 0 48px; border-top: 1px solid var(--hair); margin-top: 48px; }
+footer p { margin: 0.2rem 0; }
+</style>
+</head>
+<body>
+<header class="masthead">
+  <div class="page">
+    <p class="kicker">Companion to the scoping review</p>
+    <h1 id="site-title"></h1>
+    <p class="lead" id="site-lead"></p>
+  </div>
+</header>
+
+<div class="page">
+  <nav role="tablist" aria-label="Charts">
+   <button role="tab" data-view="figures"><span class="num">01</span><span class="name">Figures of the review</span></button>
+   <button role="tab" data-view="validation"><span class="num">02</span><span class="name">Validation datasets</span></button>
+   <button role="tab" data-view="models"><span class="num">03</span><span class="name">Numerical models</span></button>
+   <button role="tab" data-view="references"><span class="num">04</span><span class="name">SPH references</span></button>
+   <button role="tab" data-view="citations"><span class="num">05</span><span class="name">Citations between studies</span></button></nav>
+
+  <div class="layout">
+    <div class="frame-head">
+      <p class="fig-num" id="fig-num"></p>
+      <h2 id="chart-title"></h2>
+      <p class="note" id="note"></p>
+      <div class="controls">
+        <label class="toggle" id="toggle-wrap"><input type="checkbox" id="toggle"> <span id="toggle-text"></span></label>
+        <div class="chips" id="chips" hidden></div>
+        <div class="chips" id="figpick" hidden></div>
+      </div>
+    </div>
+    <figure class="frame">
+      <div id="chart"></div>
+      <div class="legend" id="legend"></div>
+      <figcaption class="frame-foot"><span id="source"></span><span>CC BY 4.0</span></figcaption>
+    </figure>
+    <aside class="card" id="card" aria-live="polite"></aside>
+  </div>
+
+  <footer id="footer"></footer>
+  <div class="tip" id="tip" hidden></div>
+</div>
+
+<script>
+const DATA = {"site": {"title": "SPH for wave energy converters", "lead": "Explore the studies in the scoping review.", "cutoff": "4 Oct 2026", "cite": "", "doi": "", "repository": "", "preview": false}, "built": "2026-11-14", "datasetLabels": {"35_zhu2023numerical": "Zhu et al. (2023)", "4_chen_2014": "Chen et al. (2014)", "BRITO_2020_Exp": "Brito et al. (2020)", "Bingham_2021_expOWC": "Bingham et al. (2021)", "Brito_2016": "Brito et al. (2016)", "Brito_2017_ExpOWSC": "Brito et al. (2017)", "Capasso2023_OMAEbuoy": "Capasso et al. (2023)", "Cheng_2024_dualPonrtoonOwc": "Cheng et al. (2024)", "Giorgi_2017_expSphere": "Giorgi et al. (2017)", "Goteman_2015": "Goteman et al. (2015)", "ITURRIOZ_2014_OWCdata": "Iturrioz et al. (2014)", "Ikari_2009_LpmMooredBuoy": "Ikari et al. (2009)", "Jakobsen_2016_expWavestar": "Jakobsen et al. (2016)", "Lopez_2014_expOWC": "Lopez et al. (2014)", "Ning_2024_OWCLandBased": "Ning et al. (2024)", "Omidvar_2013": "Omidvar et al. (2013)", "Palm_2016_CylExp": "Palm et al. (2016)", "Ransley_2017": "Ransley et al. (2017)", "Ren_2015_FreeFloatingBox": "Ren et al. (2015)", "STALLARD_2009_WaveBobber": "Stallard et al. (2009)", "SandiaData_1": "SandiaData 1", "SandiaData_2": "SandiaData 2", "SandiaData_3": "SandiaData 3", "Shahroozi_2022": "Shahroozi et al. (2022)", "Shigemura_1988_MooredBuoy": "Shigemura et al. (1988)", "Vervaet_2022_PAarray": "Vervaet et al. (2022)", "Vervaet_2023_exp2wecs": "Vervaet et al. (2023)", "Vyzikas_2017_ExpOWC": "Vyzikas et al. (2017)", "WELLER_2013_WaveBobber": "Weller et al. (2013)", "Wei_2015_exp_OWSC": "Wei et al. (2015)", "Wei_2016_exp_OWSC": "Wei et al. (2016)", "Windt_2020_wavestar": "Windt et al. (2020)", "Yu_2015_twobodyWEC": "Yu et al. (2015)", "ZANG_2018": "Zang et al. (2018)", "Zhang_2018": "Zhang et al. (2018)", "clabby2015extreme_expOWSC": "Clabby et al. (2015)", "deBacker2009hydrodynamic": "DeBacker et al. (2009)", "henry2008hydrodynamics": "Henry et al. (2008)", "henry2010advances": "Henry et al. (2010)", "henry_2014_two": "Henry et al. (2014)", "henry_2014_two; Brito_2016": "Henry et al. (2014)", "joensen2021performance": "Joensen et al. (2021)"}, "studies": [{"tag": 1, "year": "2013", "label": "Omidvar et al. (2013)", "authors": "Omidvar P.; Stansby P.K.; Rogers B.D.", "title": "SPH for 3D floating bodies using variable mass particle distribution", "journal": "International Journal for Numerical Methods in Fluids", "doi": "10.1002/fld.3749", "device": "PA", "solver": "SPHysics", "datasets": ["STALLARD_2009_WaveBobber", "WELLER_2013_WaveBobber"], "own": false, "fig": {"env": "3-D", "kernel": "Cubic", "type": "PA", "c0": [1.11, 0.2, 77.8], "h": [1.3, 1.3], "visc": ["lam", null], "H": [3.33, 3.33], "DL": [1.24, 1.24], "Ddp": [5.0, 5.0]}}, {"tag": 2, "year": "2014", "label": "Westphalen et al. (2014)", "authors": "Westphalen et al.", "title": "Investigation of wave-structure interaction using state of the art CFD techniques", "journal": "Open Journal of Fluid Dynamics", "doi": "10.4236/ojfd.2014.41003", "device": "PA", "solver": "SPHysics", "datasets": ["Omidvar_2013"], "own": false, "fig": {"env": "3-D", "kernel": "Cubic", "type": "PA", "h": [1.2, 1.2], "visc": ["inv", null], "H": [4.0, 4.0], "DL": [1.24, 1.24], "Ddp": [5.0, 5.0]}}, {"tag": 3, "year": "2014", "label": "Chen et al. (2014)", "authors": "Chen et al.", "title": "Numerical modeling of wave-induced rotations of a bottom-hinged flapper with a SPH model", "journal": "Journal of Marine Science and Technology (Taiwan)", "doi": "10.6119/JMST-012-1221-1", "device": "OWSC", "solver": "SPHysics", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.2, 1.2], "visc": ["art", 0.03], "H": [3.0, 3.85], "DL": [2.27, 2.9], "Ddp": [0.25, 0.25]}}, {"tag": 4, "year": "2014", "label": "Henry et al. (2014)", "authors": "Henry A.; Rafiee A.; Schmitt P.; Dias F.; Whittaker T.", "title": "The characteristics of wave impacts on an oscillating wave surge converter", "journal": "Journal of Ocean and Wind Energy", "doi": "", "device": "OWSC", "solver": "In-House", "datasets": ["henry2008hydrodynamics", "henry2010advances"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "c0": [0.943, 0.174, 10.0], "h": [1.5, 1.5], "visc": ["lam", null], "H": [3.64, 3.64], "DL": [1.74, 1.74], "Ddp": [3.64, 3.64]}}, {"tag": 5, "year": "2015", "label": "Chang et al. (2015)", "authors": "Chang Y.-C.; Chen D.-W.; Chow Y.-C.; Tzang S.-Y.; Lin C.-C.; Chen J.-H.", "title": "Theoretical analysis and sph simulation for the wave energy captured by a bottom-Hinged owsc", "journal": "Journal of Marine Science and Technology (Taiwan)", "doi": "10.6119/JMST-015-0610-8", "device": "OWSC", "solver": "SPHysics", "datasets": ["4_chen_2014"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.2, 1.2], "visc": ["art", 0.03], "H": [3.7, 3.85], "DL": [2.33, 3.87], "Ddp": [0.25, 0.25]}}, {"tag": 6, "year": "2016", "label": "Yeylaghi et al. (2016)", "authors": "Yeylaghi S.; Moa B.; Oshkai P.; Buckham B.; Crawford C.", "title": "ISPH modelling of an oscillating wave surge converter using an OpenMP-based parallel approach", "journal": "Journal of Ocean Engineering and Marine Energy", "doi": "10.1007/s40722-016-0053-7", "device": "OWSC", "solver": "In-House", "datasets": ["clabby2015extreme_expOWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "h": [1.5, 1.5], "visc": ["lam", null], "H": [7.5, 7.5], "DL": [4.47, 4.47], "Ddp": [3.0, 3.0]}}, {"tag": 7, "year": "2016", "label": "Didier et al. (2016)", "authors": "Didier E.; Neves D.R.C.B.; Teixeira P.R.F.; Dias J.; Neves M.G.", "title": "Smoothed particle hydrodynamics numerical model for modeling an oscillating water chamber", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2016.07.035", "device": "OWC", "solver": "SPHyCE", "datasets": [], "own": false, "fig": {"env": "2-D", "kernel": "other", "type": "OWC", "h": [1.33, 1.33], "visc": ["lam", null], "H": [14.1, 84.5], "DL": [1.3, 1.3], "Ddp": [7.04, 7.04]}}, {"tag": 8, "year": "2017", "label": "Chen et al. (2017)", "authors": "Chen D.-W.; Nagata S.; Tzang S.-Y.; Imai Y.; Hsieh C.-M.; Chen J.-H.", "title": "A time-domain numerical tool for a wave energy attenuator with the SPH method", "journal": "Journal of Marine Science and Technology (Taiwan)", "doi": "10.6119/JMST-017-1226-16", "device": "WA", "solver": "SPHysics", "datasets": ["Shigemura_1988_MooredBuoy", "Ikari_2009_LpmMooredBuoy"], "own": false, "fig": {"env": "2-D", "kernel": "", "type": "WA", "h": null, "visc": ["art", 0.05], "H": [3.0, 5.1], "DL": [2.2, 2.2], "Ddp": [2.5, 2.5]}}, {"tag": 9, "year": "2017", "label": "Crespo et al. (2017)", "authors": "Crespo A.J.C.; Altomare C.; Domínguez J.M.; González-Cao J.; Gómez-Gesteira M.", "title": "Towards simulating floating offshore oscillating water column converters with Smoothed Particle Hydrodynamics", "journal": "Coastal Engineering", "doi": "10.1016/j.coastaleng.2017.05.001", "device": "OWC", "solver": "DualSPHysics", "datasets": ["ITURRIOZ_2014_OWCdata"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "h": null, "visc": ["art", 0.01], "H": [12.0, 12.0], "DL": [0.71, 0.71], "Ddp": [1.0, 1.0]}}, {"tag": 10, "year": "2018", "label": "Wen et al. (2018)", "authors": "Wen, HJ; Ren, B; Yu, XP", "title": "An improved SPH model for turbulent hydrodynamics of a 2D oscillating water chamber", "journal": "OCEAN ENGINEERING", "doi": "10.1016/j.oceaneng.2017.12.047", "device": "OWC", "solver": "In-House", "datasets": ["ITURRIOZ_2014_OWCdata"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "h": [1.5, 1.5], "visc": ["lam", 0.001], "H": [8.0, 12.0], "DL": [0.844, 4.33]}}, {"tag": 11, "year": "2018", "label": "Huang et al. (2018)", "authors": "Huang C.; Zhang D.H.; Si Y.L.; Shi Y.X.; Lin Y.G.", "title": "Coupled finite particle method for simulations of wave and structure interaction", "journal": "Coastal Engineering", "doi": "10.1016/j.coastaleng.2018.07.003", "device": "OWSC", "solver": "In-House", "datasets": ["Brito_2016"], "own": false, "fig": {"env": "3-D", "kernel": "Cubic", "type": "OWSC", "h": [1.33, 1.33], "visc": ["art", 0.03], "H": [3.0, 6.0], "DL": [1.72, 1.72], "Ddp": [3.0, 6.0]}}, {"tag": 12, "year": "2018", "label": "Verbrugghe et al. (2018)", "authors": "Verbrugghe et al.", "title": "Coupling methodology for smoothed particle hydrodynamics modelling of non-linear wave-structure interactions", "journal": "Coastal Engineering", "doi": "10.1016/j.coastaleng.2018.04.021", "device": "PA", "solver": "DualSPHysics", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "c0": [0.458, 0.16, 90.4], "h": [1.73, 1.73], "visc": ["art", 0.01], "H": [16.0, 16.0], "DL": [0.365, 0.365], "Ddp": [10.0, 10.0]}}, {"tag": 13, "year": "2018", "label": "Canelas et al. (2018)", "authors": "Canelas et al.", "title": "Extending DualSPHysics with a differential variational inequality: modeling fluid-mechanism interaction", "journal": "Applied Ocean Research", "doi": "10.1016/j.apor.2018.04.015", "device": "TMP", "solver": "DualSPHysics", "datasets": [], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": null, "visc": ["art", 0.01], "H": [18.0, 18.0], "DL": [1.43, 1.43], "Ddp": [40.0, 40.0]}}, {"tag": 14, "year": "2018", "label": "Madhi and Yeung (2018)", "authors": "Madhi F.; Yeung R.W.", "title": "On survivability of asymmetric wave-energy converters in extreme waves", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2017.07.123", "device": "TBW", "solver": "In-House", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "PA", "c0": [0.659, 0.117, 142.0], "h": [1.2, 1.2], "visc": ["art", 0.05], "H": [26.7, 26.7], "DL": [0.815, 0.815], "Ddp": [48.9, 48.9]}}, {"tag": 15, "year": "2018", "label": "Zhang et al. (2018)", "authors": "Zhang D.H.; Shi Y.X.; Huang C.; Si Y.L.; Huang B.; Li W.", "title": "SPH method with applications of oscillating wave surge converter", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2018.01.057", "device": "OWSC", "solver": "In-House", "datasets": ["Brito_2016"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "c0": [0.686, 0.268, 39.8], "h": null, "visc": ["art", 0.01], "H": [24.0, 25.0], "DL": [0.784, 1.72], "Ddp": [12.0, 24.0]}}, {"tag": 16, "year": "2019", "label": "Weng et al. (2019)", "authors": "Weng X.; Huang C.; Long T.; Li S.M.; Liu M.B.", "title": "An integrated finite particle method with perfectly matched layer for modeling wave-structure interaction", "journal": "Coastal Engineering Journal", "doi": "10.1080/21664250.2018.1560681", "device": "OWSC", "solver": "In-House", "datasets": ["henry_2014_two; Brito_2016"], "own": false, "fig": {"env": "2-D", "kernel": "Cubic", "type": "OWSC", "h": null, "visc": ["art", 0.01], "H": [6.0, 6.0], "DL": [1.72, 1.72], "Ddp": [6.0, 6.0]}}, {"tag": 17, "year": "2019", "label": "Marrone et al. (2019)", "authors": "Marrone S.; Colagrossi A.; Baudry V.; Le Touzé D.", "title": "Extreme wave impacts on a wave energy converter: Load prediction through a SPH model", "journal": "Coastal Engineering Journal", "doi": "10.1080/21664250.2018.1560684", "device": "OWSC", "solver": "In-House (CNR-INM)", "datasets": [], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "h": [2.0, 2.0], "visc": ["art", 0.01], "H": [52.0, 104.0], "DL": [0.359, 0.359], "Ddp": [7.5, 15.0]}}, {"tag": 18, "year": "2019", "label": "Verbrugghe et al. (2019)", "authors": "Verbrugghe et al.", "title": "Implementation of open boundaries within a two-way coupled SPH model to simulate nonlinear wave-structure interactions", "journal": "Energies", "doi": "10.3390/en12040697", "device": "OWC", "solver": "DualSPHysics", "datasets": ["ITURRIOZ_2014_OWCdata"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [2.03, 0.171, 79.1], "h": [2.0, 2.0], "visc": ["art", 0.01], "H": [12.0, 12.0], "DL": [0.7, 0.7], "Ddp": [11.3, 11.3]}}, {"tag": 19, "year": "2019", "label": "Wei et al. (2019)", "authors": "Wei Z.; Edge B.L.; Dalrymple R.A.; Hérault A.", "title": "Modeling of wave energy converters by GPUSPH and Project Chrono", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2019.04.029", "device": "OWSC", "solver": "GPUSPH", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "c0": [0.943, 0.174, 183.0], "h": null, "visc": ["art", 0.03], "H": [6.0, 6.0], "DL": [1.72, 1.72], "Ddp": [6.0, 6.0]}}, {"tag": 20, "year": "2020", "label": "Zhang et al. (2020)", "authors": "Zhang N.; Yan S.; Zheng X.; Ma Q.", "title": "A 3D hybrid model coupling SPH and QALE-FEM for simulating nonlinear wave-structure interaction", "journal": "International Journal of Offshore and Polar Engineering", "doi": "10.17736/ijope.2020.jc776", "device": "PA", "solver": "In-House", "datasets": [], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "", "h": null}}, {"tag": 21, "year": "2020", "label": "Brito et al. (2020)", "authors": "Brito M.; Canelas R.B.; García-Feal O.; Domínguez J.M.; Crespo A.J.C.; Ferreira R.M.L.; Neves M.G.; Teixeira L.", "title": "A numerical tool for modelling oscillating wave surge converter with nonlinear mechanical constraints", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2019.08.034", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Brito_2017_ExpOWSC", "BRITO_2020_Exp"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": null, "visc": ["art", 0.01], "H": [15.0, 25.0], "DL": [3.0, 3.0], "Ddp": [17.0, 17.0]}}, {"tag": 22, "year": "2020", "label": "Ropero-Giralda et al. (2020)", "authors": "Ropero-Giralda P.; Crespo A.J.C.; Tagliafierro B.; Altomare C.; Domínguez J.M.; Gómez-Gesteira M.; Viccione G.", "title": "Efficiency and survivability analysis of a point-absorber wave energy converter using DualSPHysics", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2020.10.012", "device": "PA", "solver": "DualSPHysics", "datasets": ["ZANG_2018"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [2.6, 0.145, 127.0], "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [8.0, 8.0], "DL": [1.0, 1.0], "Ddp": [25.0, 25.0]}}, {"tag": 23, "year": "2020", "label": "Zhu et al. (2020)", "authors": "Zhu G.; Graham D.; Zheng S.; Hughes J.; Greaves D.", "title": "Hydrodynamics of onshore oscillating water column devices: A numerical study using smoothed particle hydrodynamics", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2020.108226", "device": "OWC", "solver": "In-House (Plymouth)", "datasets": ["Lopez_2014_expOWC"], "own": false, "fig": {"env": "2-D", "kernel": "Cubic", "type": "OWC", "c0": [1.73, 0.143, 50.7], "h": [1.2, 1.2], "visc": ["art", 0.01], "H": [4.0, 10.0], "DL": [6.0, 6.0], "Ddp": [2.0, 4.0]}}, {"tag": 24, "year": "2020", "label": "Liu et al. (2020a)", "authors": "Liu Z.; Wang Y.; Hua X.", "title": "Numerical studies and proposal of design equations on cylindrical oscillating wave surge converters under regular waves using SPH", "journal": "Energy Conversion and Management", "doi": "10.1016/j.enconman.2019.112242", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2016_exp_OWSC", "henry_2014_two"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.5, 1.5], "visc": ["art", 0.01], "H": [9.6, 24.0], "DL": [3.71, 8.82], "Ddp": [17.5, 17.5]}}, {"tag": 25, "year": "2020", "label": "Liu et al. (2020b)", "authors": "Liu Z.; Wang Y.; Hua X.", "title": "Prediction and optimization of oscillating wave surge converter using machine learning techniques", "journal": "Energy Conversion and Management", "doi": "10.1016/j.enconman.2020.112677", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["henry_2014_two"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.5, 1.5], "visc": ["art", 0.01], "H": [9.6, 24.0], "DL": [3.71, 8.82], "Ddp": [17.5, 17.5]}}, {"tag": 26, "year": "2021", "label": "Zhu et al. (2021)", "authors": "Zhu Y.; Zhang C.; Yu Y.; Hu X.", "title": "A CAD-compatible body-fitted particle generator for arbitrarily complex geometry and its application to wave-structure interaction", "journal": "Journal of Hydrodynamics", "doi": "10.1007/s42241-021-0031-y", "device": "OWSC", "solver": "SPHysics", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "h": [1.05, 1.05], "H": [6.67, 6.67], "DL": [1.72, 1.72], "Ddp": [4.0, 4.0]}}, {"tag": 27, "year": "2021", "label": "Zhang et al. (2021a)", "authors": "Zhang C.; Wei Y.; Dias F.; Hu X.", "title": "An efficient fully Lagrangian solver for modeling wave interaction with oscillating wave surge converter", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2021.109540", "device": "OWSC", "solver": "SPHinXsys", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "OWSC", "c0": [0.943, 0.174, 10.0], "h": [1.3, 1.3], "visc": ["lam", null], "H": [4.0, 4.0], "DL": [1.72, 1.72], "Ddp": [4.0, 4.0]}}, {"tag": 28, "year": "2021", "label": "Quartier et al. (2021a)", "authors": "Quartier N.; Crespo A.J.C.; Domínguez J.M.; Stratigaki V.; Troch P.", "title": "Efficient response of an onshore Oscillating Water Column Wave Energy Converter using a one-phase SPH model coupled with a multiphysics library", "journal": "Applied Ocean Research", "doi": "10.1016/j.apor.2021.102856", "device": "OWC", "solver": "DualSPHysics", "datasets": ["Bingham_2021_expOWC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWC", "h": [1.73, 1.73], "visc": ["art", 0.01], "H": [4.5, 6.43], "DL": [2.0, 2.0], "Ddp": [1.0, 1.43]}}, {"tag": 29, "year": "2021", "label": "Quartier et al. (2021b)", "authors": "Quartier N.; Ropero-Giralda P.; Domínguez J.M.; Stratigaki V.; Troch P.", "title": "Influence of the drag force on the average absorbed power of heaving wave energy converters using smoothed particle hydrodynamics", "journal": "Water (Switzerland)", "doi": "10.3390/w13030384", "device": "PA", "solver": "DualSPHysics", "datasets": ["Zhang_2018", "Giorgi_2017_expSphere"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [20.0, 20.0], "DL": [1.34, 1.34], "Ddp": [40.0, 40.0]}}, {"tag": 30, "year": "2021", "label": "Ropero-Giralda et al. (2021)", "authors": "Ropero-Giralda P.; Crespo A.J.C.; Coe R.G.; Tagliafierro B.; Domínguez J.M.; Bacelli G.; Gómez-Gesteira M.", "title": "Modelling a heaving point-absorber with a closed-loop control system using the dualsphysics code", "journal": "Energies", "doi": "10.3390/en14030760", "device": "PA", "solver": "DualSPHysics", "datasets": ["SandiaData_1", "SandiaData_2", "SandiaData_3"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [3.32, 0.05, 394.0], "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [3.67, 9.0], "DL": [1.0, 1.0], "Ddp": [17.7, 53.0]}}, {"tag": 31, "year": "2021", "label": "Li et al. (2021)", "authors": "Li et al.", "title": "Numerical investigation of hydrodynamic performance of a light buoy with different mooring configurations in regular waves", "journal": "Journal of Offshore Mechanics and Arctic Engineering", "doi": "10.1115/1.4052477", "device": "PA", "solver": "DualSPHysics", "datasets": [], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "PA", "h": null, "visc": ["art", null], "H": [10.0, 10.0], "DL": [0.555, 0.555], "Ddp": [15.2, 15.2]}}, {"tag": 32, "year": "2021", "label": "Heydari et al. (2021)", "authors": "Heydari Z.; Shobeyri G.; Najafabadi S.H.G.", "title": "Numerical investigation of solitary wave interaction with a flapper wave energy converter using incompressible SPH method", "journal": "Journal of the Brazilian Society of Mechanical Sciences and Engineering", "doi": "10.1007/s40430-021-02883-z", "device": "OWSC", "solver": "In-House", "datasets": [], "own": false, "fig": {"env": "2-D", "kernel": "Cubic", "type": "OWSC", "h": [1.2, 1.2], "visc": ["inv", null], "H": [4.0, 12.0], "DL": [1.0, 1.0], "Ddp": [1.0, 1.0]}}, {"tag": 33, "year": "2021", "label": "Zheng et al. (2021)", "authors": "Zheng X.; Chen G.; Cao W.; Xu H.; Zhao R.; Xu Q.; Kramer M.; Touzé D.L.; Borthwick A.G.L.; Li Y.", "title": "On the energy conversion characteristics of a top-mounted pitching absorber by using smoothed particle hydrodynamics", "journal": "Energy Conversion and Management", "doi": "10.1016/j.enconman.2021.114893", "device": "TMP", "solver": "DualSPHysics", "datasets": ["Jakobsen_2016_expWavestar", "Ransley_2017"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": null, "visc": ["art", 0.01], "H": [5.0, 13.6], "DL": [0.439, 0.804], "Ddp": [20.0, 20.0]}}, {"tag": 34, "year": "2021", "label": "Liu et al. (2021)", "authors": "Liu Z.; Wang Y.; Hua X.", "title": "Proposal of a novel analytical wake model and array optimization of oscillating wave surge converter using differential evolution algorithm", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2020.108380", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": null, "visc": ["art", 0.01], "H": [4.0, 12.0], "DL": [1.72, 1.72], "Ddp": [2.4, 12.0]}}, {"tag": 35, "year": "2021", "label": "Wang and Liu (2021)", "authors": "Wang Y.; Liu Z.", "title": "Proposal of novel analytical wake model and GPU-accelerated array optimization method for oscillating wave surge energy converter", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2021.07.054", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "h": null, "visc": ["art", 0.01], "H": [4.0, 12.0], "DL": [1.72, 1.72], "Ddp": [2.4, 12.0]}}, {"tag": 36, "year": "2021", "label": "Zhang et al. (2021b)", "authors": "Zhang et al.", "title": "SPHinXsys: An open-source multi-physics and multi-resolution library based on smoothed particle hydrodynamics", "journal": "Computer Physics Communications", "doi": "10.1016/j.cpc.2021.108066", "device": "OWSC", "solver": "SPHinXsys", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "OWSC", "c0": [0.943, 0.174, 10.0], "h": [1.3, 1.3], "visc": ["lam", null], "H": [4.0, 4.0], "DL": [1.72, 1.72], "Ddp": [4.0, 4.0]}}, {"tag": 37, "year": "2022", "label": "Ramezanzadeh et al. (2022)", "authors": "Ramezanzadeh S.; Ozbulut M.; Yildiz M.", "title": "A Numerical Investigation of the Energy Efficiency Enhancement of Oscillating Water Column Wave Energy Converter Systems", "journal": "Energies", "doi": "10.3390/en15218276", "device": "OWC", "solver": "DualSPHysics", "datasets": ["ITURRIOZ_2014_OWCdata"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "h": [1.33, 1.33], "visc": ["lam", 0.001], "H": [4.0, 8.0], "DL": [0.724, 0.724], "Ddp": [2.5, 5.0]}}, {"tag": 38, "year": "2022", "label": "Tagliafierro et al. (2022)", "authors": "Tagliafierro B.; Martínez-Estévez I.; Domínguez J.M.; Crespo A.J.C.; Göteman M.; Engström J.; Gómez-Gesteira M.", "title": "A numerical study of a taut-moored point-absorber wave energy converter with a linear power take-off system under extreme wave conditions", "journal": "Applied Energy", "doi": "10.1016/j.apenergy.2022.118629", "device": "PA", "solver": "DualSPHysics", "datasets": ["Goteman_2015"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [1.85, 0.108, 262.0], "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [12.7, 19.0], "DL": [1.0, 1.0], "Ddp": [8.0, 12.0]}}, {"tag": 39, "year": "2022", "label": "Brito et al. (2022)", "authors": "Brito et al.", "title": "Numerical model of constrained wave energy hyperbaric converter under full-scale sea wave conditions", "journal": "Journal of Marine Science and Engineering", "doi": "10.3390/jmse10101489", "device": "TMP", "solver": "DualSPHysics", "datasets": ["Windt_2020_wavestar"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "PA", "c0": [3.91, 0.0583, 193.0], "h": null, "visc": ["art", 0.01], "H": [10.0, 25.0], "DL": [1.23, 4.57], "Ddp": [100.0, 100.0]}}, {"tag": 40, "year": "2022", "label": "Soleimani et al. (2022)", "authors": "Soleimani K.; Ketabdari M.J.; Bingham H.B.", "title": "WCSPH simulation of the forced response of an attenuator oscillating water column wave energy converter", "journal": "European Journal of Mechanics, B/Fluids", "doi": "10.1016/j.euromechflu.2022.04.003", "device": "OWC", "solver": "DualSPHysics", "datasets": ["joensen2021performance"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWC", "h": null, "visc": ["art", 0.01], "H": [6.27, 41.2], "DL": [2.5, 2.5], "Ddp": [5.97, 5.97]}}, {"tag": 41, "year": "2023", "label": "Zhu et al. (2023a)", "authors": "Zhu G.; Hughes J.; Zheng S.; Greaves D.", "title": "Development of a two-dimensional coupled smoothed particle hydrodynamics model and its application to nonlinear wave simulations", "journal": "Computers and Fluids", "doi": "10.1016/j.compfluid.2023.106044", "device": "OWC", "solver": "In-House (Plymouth)", "datasets": ["35_zhu2023numerical"], "own": false, "fig": {"env": "2-D", "kernel": "other", "type": "OWC", "h": null, "visc": ["art", 0.01], "H": [22.5, 22.5], "DL": [1.97, 1.97], "Ddp": [1.88, 1.88]}}, {"tag": 42, "year": "2023", "label": "Zhu et al. (2023b)", "authors": "Zhu G.; Samuel J.; Zheng S.; Hughes J.; Simmonds D.; Greaves D.", "title": "Numerical investigation on the hydrodynamic performance of a 2D U-shaped Oscillating Water Column wave energy converter", "journal": "Energy", "doi": "10.1016/j.energy.2023.127357", "device": "OWC", "solver": "In-House (Plymouth)", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "", "type": "OWC", "h": null, "visc": ["art", 0.01], "H": [5.0, 24.7], "DL": [1.8, 2.44], "Ddp": [1.5, 1.5]}}, {"tag": 43, "year": "2023", "label": "Chen et al. (2023)", "authors": "Chen X.; Cui J.; Li M.-Y.", "title": "Numerical simulation and energy extraction power fitting of OWSCs under regular waves using SPH method", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2023.115077", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2016_exp_OWSC"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": null, "visc": ["art", 0.01], "H": [50.0, 50.0], "DL": [3.94, 3.94], "Ddp": [43.7, 43.7]}}, {"tag": 44, "year": "2023", "label": "Cui et al. (2023)", "authors": "Cui J.; Chen X.; Dai S.", "title": "Numerical study on dual oscillating wave surge converter with different cross-section shapes using SPH under regular waves", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2023.113755", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2016_exp_OWSC"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "c0": [0.946, 0.349, 34.7], "h": null, "visc": ["art", 0.01], "H": [20.6, 76.0], "DL": [3.3, 5.88], "Ddp": [10.9, 58.3]}}, {"tag": 45, "year": "2023", "label": "Soleimani et al. (2023)", "authors": "Soleimani K.; Ketabdari M.J.; Gharechae A.", "title": "Smoothed particle hydrodynamics study of a heaving point absorber in various waves using wave tank and calm-water models", "journal": "Physics of Fluids", "doi": "10.1063/5.0142249", "device": "PA", "solver": "DualSPHysics", "datasets": ["deBacker2009hydrodynamic"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": [1.91, 1.91], "visc": ["art", 0.01], "H": [10.2, 12.7], "DL": [0.938, 0.938], "Ddp": [31.5, 39.4]}}, {"tag": 46, "year": "2024", "label": "Wang and Liu (2024)", "authors": "Wang Y.; Liu Z.", "title": "A bionic design of oscillating wave surge energy converter based on scallops", "journal": "Energy", "doi": "10.1016/j.energy.2024.132236", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["henry_2014_two"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.5, 1.5], "visc": ["art", 0.01], "H": [20.0, 20.0], "DL": [3.92, 3.92], "Ddp": [17.5, 17.5]}}, {"tag": 47, "year": "2024", "label": "Wang et al. (2024)", "authors": "Wang Y.; Liu Z.; Tao T.", "title": "A novel oscillating wave surge converter by hollowing out the flap bottom: Numerical studies using smoothed particle hydrodynamics", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2024.117694", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["henry_2014_two"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWSC", "h": [1.5, 1.5], "visc": ["art", 0.01], "H": [20.0, 20.0], "DL": [3.92, 3.92], "Ddp": [17.5, 17.5]}}, {"tag": 48, "year": "2024", "label": "Quartier et al. (2024)", "authors": "Quartier N.; Vervaet T.; Fernandez G.V.; Domínguez J.M.; Crespo A.J.C.; Stratigaki V.; Troch P.", "title": "High-fidelity numerical modelling of a two-WEC array with accurate implementation of the PTO system and control strategy using DualSPHysics", "journal": "Energy", "doi": "10.1016/j.energy.2024.130888", "device": "PA", "solver": "DualSPHysics", "datasets": ["Vervaet_2023_exp2wecs"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [1.89, 0.158, 176.0], "h": [2.0, 2.0], "visc": ["lam", 0.001], "H": [6.4, 6.4], "DL": [1.0, 1.0], "Ddp": [24.8, 24.8]}}, {"tag": 49, "year": "2024", "label": "He et al. (2024)", "authors": "He F.; Jiang H.; Lin Y.; Pan J.; Zhang Y.; Huang C.", "title": "Multi-phase SPH-FDM and experimental investigations on the hydrodynamics of an oscillating water column wave energy device", "journal": "Coastal Engineering", "doi": "10.1016/j.coastaleng.2024.104569", "device": "OWC", "solver": "In-House", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "c0": [1.47, 0.0875, 155.0], "h": [1.33, 1.33], "visc": ["art", 0.01], "H": [7.0, 7.0], "DL": [4.23, 9.81], "Ddp": [2.0, 2.0]}}, {"tag": 50, "year": "2024", "label": "Soleimani and Ketabdari (2024)", "authors": "Soleimani K.; Ketabdari M.J.", "title": "Performance analysis of a tuned point absorber using SPH calm water and wave tank simulations", "journal": "Journal of Ocean Engineering and Science", "doi": "10.1016/j.joes.2022.03.010", "device": "PA", "solver": "DualSPHysics", "datasets": ["deBacker2009hydrodynamic"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": [1.91, 1.91], "visc": ["art", 0.01], "H": [10.2, 12.7], "DL": [0.89, 0.89], "Ddp": [31.5, 39.4]}}, {"tag": 51, "year": "2024", "label": "Manawadu et al. (2024)", "authors": "Manawadu N.H.D.S.; Nissanka I.D.; Karunasena H.C.P.", "title": "SPH-based numerical modelling and performance analysis of a heaving point absorber type wave energy converter with a novel buoy geometry", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2024.120595", "device": "PA", "solver": "DualSPHysics", "datasets": ["ZANG_2018"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": null, "visc": ["art", 0.01], "H": [8.0, 16.0], "DL": [1.0, 1.0], "Ddp": [25.0, 50.0]}}, {"tag": 52, "year": "2024", "label": "Yun et al. (2024)", "authors": "Yun S.-M.; Shin H.-S.; Park J.-C.", "title": "Two-Way Coupling Simulation of Fluid-Multibody Dynamics for Estimating Power Generation Performance of Point Absorber Wave Energy Converters", "journal": "Energies", "doi": "10.3390/en17040930", "device": "PA", "solver": "DualSPHysics", "datasets": ["Yu_2015_twobodyWEC", "ZANG_2018"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": null, "visc": ["art", null], "H": [8.27, 8.27], "DL": [1.0, 1.0], "Ddp": [45.5, 45.5]}}, {"tag": 53, "year": "2025", "label": "Zhang et al. (2025a)", "authors": "Zhang Y.; Pan J.; Song M.; Jiang H.; He F.; Huang C.; Shakibaeinia A.", "title": "A multi-phase SPH model for simulating the floating OWC-breakwater integrated systems", "journal": "Coastal Engineering", "doi": "10.1016/j.coastaleng.2024.104658", "device": "OWC", "solver": "In-House", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "c0": [1.26, 0.0667, 241.0], "h": [1.5, 1.5], "visc": ["art", 0.05], "H": [10.0, 20.0], "DL": [4.01, 4.01], "Ddp": [25.0, 50.0]}}, {"tag": 54, "year": "2025", "label": "Ye et al. (2025a)", "authors": "Ye M.; Zhang C.; Ren Y.; Liu Z.; Haidn O.J.; Hu X.", "title": "Adaptive optimization of wave energy conversion in oscillatory wave surge converters via SPH simulation and deep reinforcement learning", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2025.122887", "device": "OWSC", "solver": "SPHinXsys", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "c0": [0.944, 0.232, 51.7], "h": null, "visc": ["lam", 0.001], "H": [8.0, 13.3], "DL": [1.72, 1.72], "Ddp": [8.0, 8.0]}}, {"tag": 55, "year": "2025", "label": "Ramezanzadeh et al. (2025)", "authors": "Ramezanzadeh S.; Ozbulut M.; Yildiz M.", "title": "Comprehensive numerical study on the behavior of floating structures under challenging ocean conditions using WCSPH", "journal": "Journal of Fluids and Structures", "doi": "10.1016/j.jfluidstructs.2025.104273", "device": "PA", "solver": "In-House", "datasets": ["ZANG_2018"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": [1.33, 1.33], "visc": ["lam", 0.001], "H": [5.71, 11.4], "DL": [1.0, 1.0], "Ddp": [17.9, 35.7]}}, {"tag": 56, "year": "2025", "label": "Capasso et al. (2025a)", "authors": "Capasso S.; Tagliafierro B.; Martínez-Estévez I.; Altomare C.; Gómez-Gesteira M.; Göteman M.; Viccione G.", "title": "Development of an SPH-based numerical wave–current tank and application to wave energy converters", "journal": "Applied Energy", "doi": "10.1016/j.apenergy.2024.124508", "device": "PA", "solver": "DualSPHysics", "datasets": ["Goteman_2015", "Capasso2023_OMAEbuoy"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [1.84, 0.112, 253.0], "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [13.1, 13.1], "DL": [1.0, 1.0], "Ddp": [7.98, 7.98]}}, {"tag": 57, "year": "2025", "label": "Ye et al. (2025b)", "authors": "Ye M.; Ma H.; Ren Y.; Zhang C.; Haidn O.J.; Hu X.", "title": "DRLinSPH: an open-source platform using deep reinforcement learning and SPHinXsys for fluid-structure-interaction problems", "journal": "Engineering Applications of Computational Fluid Mechanics", "doi": "10.1080/19942060.2025.2460677", "device": "OWSC", "solver": "SPHinXsys", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "2-D", "kernel": "", "type": "OWSC", "c0": [0.82, 0.273, 54.7], "h": null, "visc": ["lam", 0.001], "H": [7.5, 7.5], "DL": [1.9, 1.9], "Ddp": [6.0, 6.0]}}, {"tag": 58, "year": "2025", "label": "Zhang et al. (2025b)", "authors": "Zhang N.; Yan S.; Ma Q.", "title": "Hybrid ISPH_GNN method for simulating violent wave-structure interactions using wave-only data for training", "journal": "Journal of Computational Physics", "doi": "10.1016/j.jcp.2025.114277", "device": "OWSC", "solver": "In-House", "datasets": ["henry_2014_two", "Wei_2016_exp_OWSC"], "own": false, "fig": {"env": "2-D", "kernel": "Cubic", "type": "OWSC", "h": null, "H": [12.5, 12.5], "DL": [3.92, 3.92], "Ddp": [10.9, 10.9]}}, {"tag": 59, "year": "2025", "label": "Wan et al. (2025)", "authors": "Wan C.; Yang C.; He M.; Baldock T.E.; Nielsen P.; Johanning L.", "title": "Hydrodynamic and power conversion performance of a hybrid raft-type WEC and breakwater system using SPH method", "journal": "Renewable Energy", "doi": "10.1016/j.renene.2025.122753", "device": "WA", "solver": "SPHysics", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "WA", "h": null, "visc": ["art", null], "H": [4.0, 6.0], "DL": [1.45, 1.45], "Ddp": [5.0, 5.0]}}, {"tag": 60, "year": "2025", "label": "Liu et al. (2025)", "authors": "Liu K.; Chen D.; Liang P.; Yao X.; Deng Z.; Xu K.; Xin Y.; Huang D.", "title": "SPH modeling and experimental validation on power performance and dynamic response of a novel swing-wing wave energy converter", "journal": "Energy Conversion and Management", "doi": "10.1016/j.enconman.2024.119420", "device": "WA", "solver": "DualSPHysics", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "WA", "c0": [6.06, 0.05, 150.0], "h": [2.08, 2.08], "visc": ["art", 0.01], "H": [20.0, 20.0], "DL": [3.95, 5.69], "Ddp": [8.0, 8.0]}}, {"tag": 61, "year": "2025", "label": "Capasso et al. (2025b)", "authors": "Capasso S.; Shahroozi Z.; Göteman M.; Martínez-Estévez I.; Viccione G.; Tagliafierro B.", "title": "SPH-based modeling of a direct-drive WEC in extreme waves and currents", "journal": "Applied Ocean Research", "doi": "10.1016/j.apor.2025.104808", "device": "PA", "solver": "DualSPHysics", "datasets": ["Shahroozi_2022"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [0.92, 0.219, 98.2], "h": [2.6, 2.6], "visc": ["lam", 0.001], "H": [3.13, 3.85], "DL": [1.0, 1.0], "Ddp": [4.7, 12.7]}}, {"tag": 62, "year": "2026", "label": "Cromheeke et al. (2026)", "authors": "Cromheeke L.; Baines-Maitland A.; Stratigaki V.; Troch P.", "title": "An implementation framework to enable optimal control of wave energy converter arrays with application to a smoothed particle hydrodynamics solver", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2026.126538", "device": "PA", "solver": "DualSPHysics", "datasets": ["Vervaet_2022_PAarray"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "h": [2.08, 2.08], "visc": ["lam", 0.001], "H": [8.0, 8.0], "DL": [3.53, 3.53], "Ddp": [31.0, 31.0]}}, {"tag": 63, "year": "2026", "label": "Zhan et al. (2026)", "authors": "Zhan Y.; Martínez-Estévez I.; Luo M.; Crespo A.J.C.; Khayyer A.", "title": "Coupling Smoothed Particle Hydrodynamics with multi-agent deep reinforcement learning for cooperative control of point absorbers", "journal": "Engineering Applications of Artificial Intelligence", "doi": "10.1016/j.engappai.2026.115417", "device": "PA", "solver": "DualSPHysics+", "datasets": ["ZANG_2018"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [2.04, 0.145, 10.0], "h": [2.0, 2.0], "visc": ["lam", null], "H": [8.0, 8.0], "DL": [1.03, 1.03], "Ddp": [25.0, 25.0]}}, {"tag": 64, "year": "2026", "label": "An et al. (2026)", "authors": "An S.-H.; Lee T.-K.; Hwang S.-Y.; Oh S.; Lee J.-H.", "title": "Depth-Dependent Wave-Energy Contribution-Based Parametric Study of Submerged Ramp Design for a Caisson-Type Overtopping Wave Energy Converter: Hydraulic Efficiency and Construction-Economy Assessment", "journal": "Energies", "doi": "10.3390/en19040926", "device": "OWEC", "solver": "DualSPHysics", "datasets": [], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWEC", "h": [2.0, 2.0], "visc": ["art", 0.01], "H": [50.0, 50.0], "DL": [2.87, 2.87], "Ddp": [3.6, 3.6]}}, {"tag": 65, "year": "2026", "label": "Wan et al. (2026)", "authors": "Wan C.; Yang C.; Chen H.; Li C.; Johanning L.; Baldock T.E.", "title": "Experimental and numerical study in hydrodynamic coupling and energy capture performance of a raft-type WEC within an integrated system", "journal": "Energy", "doi": "10.1016/j.energy.2026.142338", "device": "WA", "solver": "SPHysics", "datasets": [], "own": true, "fig": {"env": "2-D", "kernel": "Quintic", "type": "WA", "h": null, "visc": ["art", null], "H": [6.0, 6.0], "DL": [1.45, 1.45], "Ddp": [10.0, 10.0]}}, {"tag": 66, "year": "2026", "label": "An and Lee (2026)", "authors": "An S.-H.; Lee J.-H.", "title": "Hydraulic Design Optimization of a Multi-Stage Overtopping Wave Energy Converter Using WCSPH Methodology Under Site-Specific Wave Conditions", "journal": "Journal of Marine Science and Engineering", "doi": "10.3390/jmse14020127", "device": "OWEC", "solver": "DualSPHysics", "datasets": [], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWEC", "h": [2.0, 2.0], "visc": ["art", 0.01], "H": [50.0, 50.0], "DL": [2.87, 2.87], "Ddp": [3.6, 3.6]}}, {"tag": 67, "year": "2026", "label": "Cui et al. (2026)", "authors": "Cui J.; Shi P.; Chen X.", "title": "Hydrodynamic Characteristics of A Shore-based Multi-chamber Oscillating Water-column Device Using the Smoothed Particle Hydrodynamics Method", "journal": "Journal of Marine Science and Application", "doi": "10.1007/s11804-026-00844-3", "device": "OWC", "solver": "DualSPHysics", "datasets": ["Ning_2024_OWCLandBased"], "own": false, "fig": {"env": "2-D", "kernel": "", "type": "OWC", "c0": [0.895, 0.0714, 238.0], "h": null, "visc": ["lam", null], "H": [50.0, 50.0], "Ddp": [5.0, 5.0]}}, {"tag": 68, "year": "2026", "label": "Renganathan (2026)", "authors": "Renganathan M.", "title": "Hydrodynamic Response of Hybrid FOWC-BBDB Wave Energy Converters Using SPH", "journal": "Journal of Eta Maritime Science", "doi": "10.4274/jems.2025.04764", "device": "OWC", "solver": "DualSPHysics", "datasets": ["ITURRIOZ_2014_OWCdata"], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "OWC", "c0": [1.21, 0.15, 10.0], "h": [2.01, 2.01], "H": [6.67, 8.33], "DL": [1.25, 2.26]}}, {"tag": 69, "year": "2026", "label": "Mina et al. (2026a)", "authors": "Mina B.; Tagliafierro B.; Martínez-Estévez I.; Altomare C.; Gómez-Gesteira M.; Malara G.; Arena F.", "title": "Implementation of a single-phase SPH pneumatic power take-off model for small- and full-scale OWC devices within DualSPHysics", "journal": "Computational Particle Mechanics", "doi": "10.1016/j.cpms.2026.03.005", "device": "OWC", "solver": "DualSPHysics", "datasets": ["Vyzikas_2017_ExpOWC", "Cheng_2024_dualPonrtoonOwc"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "c0": [0.954, 0.165, 218.0], "h": [1.7, 1.7], "visc": ["art", 0.01], "H": [25.9, 33.1], "DL": [1.0, 1.0], "Ddp": [5.0, 7.06]}}, {"tag": 70, "year": "2026", "label": "Fernando and Karunasena (2026)", "authors": "Fernando, STR; Karunasena, HCP", "title": "Simulation Based Design of a Small-scale Point Absorber Type Wave Energy Converter with Improved Performance for Sri Lankan Power Generation Applications", "journal": "ENGINEER-JOURNAL OF THE INSTITUTION OF ENGINEERS SRI LANKA", "doi": "10.4038/engineer.v59i2.7748", "device": "OWSC", "solver": "DualSPHysics", "datasets": [], "own": false, "fig": {"env": "3-D", "kernel": "", "type": "OWSC", "h": null, "H": [3.0, 7.2]}}, {"tag": 71, "year": "2026", "label": "Manawadu et al. (2026)", "authors": "Manawadu N.H.D.S.; Liyanage L.P.D.D.; Nissanka I.D.; Karunasena H.C.P.", "title": "SPH-based numerical analysis and performance optimisation of an oscillating wave surge converter with a novel flap geometry for efficient wave energy extraction", "journal": "Journal of Ocean Engineering and Marine Energy", "doi": "10.1007/s40722-025-00448-z", "device": "OWSC", "solver": "DualSPHysics", "datasets": ["Wei_2015_exp_OWSC"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "OWSC", "h": [2.08, 2.08], "visc": ["lam", 0.001], "H": [4.0, 12.6], "DL": [1.68, 1.68], "Ddp": [1.67, 5.26]}}, {"tag": 72, "year": "2026", "label": "Mina et al. (2026b)", "authors": "Mina B.; Martínez-Estévez I.; Tagliafierro B.; Crespo A.J.C.; Gómez-Gesteira M.; Malara G.; Arena F.", "title": "SPH-integrated chamber model applied to floating OWC devices: 2-D and 3-D analysis", "journal": "Applied Ocean Research", "doi": "10.1016/j.apor.2025.104896", "device": "PA-OWC", "solver": "DualSPHysics", "datasets": ["Palm_2016_CylExp"], "own": false, "fig": {"env": "3-D", "kernel": "Quintic", "type": "PA", "c0": [2.55, 0.0889, 279.0], "h": [2.08, 2.08], "visc": ["lam", 0.001], "H": [2.16, 4.68], "DL": [1.0, 1.0], "Ddp": [13.9, 30.1]}}, {"tag": 73, "year": "2026", "label": "Zhao et al. (2026)", "authors": "Zhao J.; Zheng X.; Zhao H.", "title": "The smoothed particle hydrodynamics model for multiphase flow problems with high and low density ratios", "journal": "Ocean Engineering", "doi": "10.1016/j.oceaneng.2026.124685", "device": "OWC", "solver": "In-House", "datasets": ["Ren_2015_FreeFloatingBox"], "own": false, "fig": {"env": "2-D", "kernel": "Quintic", "type": "OWC", "c0": [1.3, 0.25, 10.0], "h": [1.5, 1.5], "H": [10.0, 10.0], "DL": [1.03, 1.03], "Ddp": [3.0, 3.0]}}], "citations": [[5, 3], [6, 4], [8, 3], [8, 5], [10, 1], [10, 7], [10, 9], [11, 4], [11, 9], [12, 1], [12, 9], [16, 15], [17, 3], [17, 15], [18, 12], [19, 4], [19, 9], [19, 11], [19, 13], [21, 6], [21, 9], [21, 12], [21, 13], [21, 15], [22, 1], [22, 2], [22, 9], [22, 12], [22, 13], [22, 18], [22, 21], [23, 7], [23, 9], [23, 10], [23, 11], [23, 14], [23, 15], [23, 21], [23, 24], [24, 4], [24, 11], [24, 15], [24, 19], [25, 4], [25, 11], [25, 15], [25, 21], [25, 24], [26, 27], [26, 36], [27, 4], [27, 19], [27, 21], [27, 26], [27, 36], [28, 1], [28, 9], [28, 10], [28, 12], [28, 13], [28, 18], [28, 19], [28, 21], [28, 22], [28, 23], [28, 24], [28, 30], [29, 1], [29, 2], [29, 12], [29, 13], [29, 18], [29, 21], [29, 22], [30, 1], [30, 2], [30, 13], [30, 21], [30, 22], [32, 3], [32, 8], [32, 17], [33, 9], [33, 13], [33, 21], [33, 22], [33, 24], [33, 28], [34, 4], [34, 15], [34, 19], [34, 21], [34, 24], [34, 25], [35, 4], [35, 15], [35, 19], [35, 21], [35, 24], [35, 25], [36, 20], [36, 21], [36, 27], [37, 9], [37, 10], [37, 14], [37, 22], [37, 23], [38, 9], [38, 13], [38, 21], [38, 22], [38, 28], [38, 29], [38, 30], [39, 13], [39, 21], [39, 22], [39, 30], [39, 33], [39, 38], [40, 7], [40, 9], [40, 10], [40, 12], [40, 21], [40, 23], [40, 28], [40, 29], [41, 12], [41, 18], [41, 20], [41, 23], [41, 36], [41, 42], [42, 7], [42, 9], [42, 10], [42, 23], [42, 28], [43, 4], [43, 12], [43, 15], [43, 19], [43, 21], [43, 24], [43, 25], [43, 27], [43, 28], [43, 34], [43, 38], [43, 44], [44, 4], [44, 13], [44, 15], [44, 21], [44, 24], [44, 34], [44, 36], [45, 1], [45, 18], [45, 22], [45, 30], [45, 33], [45, 40], [46, 11], [46, 15], [46, 21], [46, 24], [46, 25], [46, 27], [46, 44], [47, 11], [47, 15], [47, 21], [47, 24], [47, 25], [47, 27], [47, 44], [48, 1], [48, 2], [48, 9], [48, 10], [48, 12], [48, 13], [48, 22], [48, 23], [48, 28], [48, 30], [48, 38], [48, 42], [49, 16], [49, 23], [49, 28], [50, 1], [50, 9], [50, 12], [50, 18], [50, 21], [50, 22], [50, 29], [50, 30], [50, 31], [50, 33], [50, 38], [51, 13], [51, 22], [52, 6], [52, 15], [52, 21], [53, 11], [53, 16], [53, 19], [53, 23], [53, 28], [53, 49], [54, 4], [54, 21], [54, 24], [54, 27], [54, 36], [55, 14], [55, 22], [55, 37], [56, 13], [56, 18], [56, 22], [56, 30], [56, 38], [56, 39], [56, 48], [57, 27], [57, 36], [59, 22], [60, 9], [60, 21], [60, 24], [60, 25], [60, 27], [60, 28], [60, 33], [60, 38], [60, 40], [60, 43], [60, 44], [60, 48], [61, 1], [61, 2], [61, 11], [61, 18], [61, 22], [61, 30], [61, 38], [61, 48], [61, 51], [61, 56], [61, 59], [62, 22], [62, 30], [62, 38], [62, 48], [62, 61], [63, 22], [63, 38], [63, 43], [63, 51], [63, 54], [63, 57], [63, 61], [64, 66], [65, 59], [67, 7], [67, 23], [67, 28], [67, 40], [67, 42], [68, 9], [68, 21], [68, 23], [68, 28], [68, 40], [68, 43], [69, 11], [69, 13], [69, 23], [69, 28], [69, 37], [69, 40], [69, 42], [69, 49], [69, 53], [69, 72], [71, 4], [71, 13], [71, 15], [71, 19], [71, 21], [71, 22], [71, 24], [71, 27], [71, 51], [72, 9], [72, 16], [72, 19], [72, 21], [72, 23], [72, 28], [72, 38], [72, 53], [72, 56], [73, 49], [73, 53]], "references": [{"id": "e079e96cad", "study": null, "label": "Wendland (1995)", "authors": "Wendland H.", "title": "Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree", "source": "Adv. Comput. Math", "year": "1995", "doi": "", "raw": "Wendland H., Piecewise polynomial, positive definite and compactly supported radial functions of minimal degree, Adv. Comput. Math., 4, pp. 389-396, (1995)", "citers": [1, 6, 10, 12, 13, 17, 18, 19, 21, 24, 25, 26, 27, 28, 29, 30, 33, 38, 39, 43, 44, 48, 51, 52, 54, 56, 60, 62, 63, 65, 66, 69, 71, 72, 73], "group": "SPH theory"}, {"id": "8c8ca98a48", "study": null, "label": "Lucy (1977)", "authors": "Lucy L.B.", "title": "A numerical approach to the testing of the fission hypothesis", "source": "Astron. J", "year": "1977", "doi": "", "raw": "Lucy L.B., A numerical approach to the testing of the fission hypothesis, Astron. J., 82, 12, pp. 1013-1024, (1977)", "citers": [1, 6, 7, 14, 19, 21, 26, 27, 33, 41, 50, 57, 66], "group": "SPH theory"}, {"id": "af0b20654f", "study": null, "label": "Monaghan (1992)", "authors": "Monaghan J.", "title": "Smoothed particle hydrodynamics", "source": "Annu. Rev. Astron. Astrophys", "year": "1992", "doi": "", "raw": "Monaghan J., Smoothed particle hydrodynamics, Annu. Rev. Astron. Astrophys., 30, 1, pp. 543-574, (1992)", "citers": [1, 3, 6, 7, 8, 9, 12, 14, 18, 19, 20, 21, 22, 28, 29, 30, 31, 33, 38, 39, 40, 43, 44, 45, 48, 50, 52, 56, 57, 60, 66, 69, 71, 72], "group": "SPH theory"}, {"id": "2bc5a3dd29", "study": null, "label": "Crespo et al. (2007)", "authors": "Crespo A.J.C.; Gomez-Gesteira M.; Dalrymple R.A.", "title": "Boundary conditions generated by dynamic particles in SPH methods", "source": "Comput. Mater. Continua (CMC)", "year": "2007", "doi": "", "raw": "Crespo A.J.C.; Gomez-Gesteira M.; Dalrymple R.A., Boundary conditions generated by dynamic particles in SPH methods, Comput. Mater. Continua (CMC), 5, pp. 173-184, (2007)", "citers": [3, 9, 10, 12, 13, 21, 24, 25, 28, 30, 31, 33, 34, 38, 39, 40, 43, 44, 45, 48, 50, 52, 56, 59, 60, 61, 62, 71], "group": "SPH theory"}, {"id": "f569137c03", "study": null, "label": "Monaghan (1994)", "authors": "Monaghan J.J.", "title": "Simulating free surface flows with SPH", "source": "Journal of Computational Physics", "year": "1994", "doi": "", "raw": "Monaghan J.J., Simulating free surface flows with SPH, Journal of Computational Physics, 110, 2, pp. 399-406, (1994)", "citers": [3, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 17, 18, 19, 21, 23, 26, 27, 36, 37, 39, 55, 57, 60, 71], "group": "SPH theory"}, {"id": "82b44f3788", "study": null, "label": "Gingold and Monaghan (1977)", "authors": "Gingold R.A.; Monaghan J.J.", "title": "Smoothed particle hydrodynamics - Theory and application to non-spherical stars", "source": "Mon. Not. Roy. Astron. Soc", "year": "1977", "doi": "", "raw": "Gingold R.A.; Monaghan J.J., Smoothed particle hydrodynamics - Theory and application to non-spherical stars, Mon. Not. Roy. Astron. Soc., pp. 181375-181389, (1977)", "citers": [3, 5, 6, 7, 8, 14, 15, 19, 21, 26, 27, 32, 33, 37, 41, 50, 55, 58, 66], "group": "SPH theory"}, {"id": "fcd785db99", "study": null, "label": "Antuono et al. (2010)", "authors": "Antuono M.; Colagrossi A.; Marrone S.; Molteni D.", "title": "Free-surface flows solved by means of SPH schemes with numerical diffusive terms", "source": "Comput. Phys. Commun", "year": "2010", "doi": "", "raw": "Antuono M.; Colagrossi A.; Marrone S.; Molteni D., Free-surface flows solved by means of SPH schemes with numerical diffusive terms, Comput. Phys. Commun., 181, pp. 532-549, (2010)", "citers": [11, 12, 15, 17, 20, 29, 33, 34, 40, 44, 48, 49, 52, 53, 60, 62, 63, 71, 73], "group": "SPH theory"}, {"id": "e86ef1f3b0", "study": null, "label": "Molteni and Colagrossi (2009)", "authors": "Molteni D.; Colagrossi A.", "title": "A simple procedure to improve the pressure evaluation in hydrodynamic context using the SPH", "source": "Comput. Phys. Commun", "year": "2009", "doi": "", "raw": "Molteni D.; Colagrossi A., A simple procedure to improve the pressure evaluation in hydrodynamic context using the SPH, Comput. Phys. Commun., 180, pp. 861-872, (2009)", "citers": [13, 15, 18, 19, 25, 29, 33, 34, 35, 38, 48, 51, 52, 56, 62, 67, 69, 71], "group": "SPH theory"}, {"id": "e740b0317e", "study": null, "label": "Colagrossi and Landrini (2003)", "authors": "Colagrossi A.; Landrini M.", "title": "Numerical simulation of interfacial flows by smoothed particle hydrodynamics", "source": "J. Comput. Phys", "year": "2003", "doi": "", "raw": "Colagrossi A.; Landrini M., Numerical simulation of interfacial flows by smoothed particle hydrodynamics, J. Comput. Phys., 191, 2, pp. 448-475, (2003)", "citers": [1, 6, 7, 9, 13, 14, 15, 21, 23, 29, 39, 41, 67, 69, 71, 73], "group": "SPH theory"}, {"id": "369d98719d", "study": null, "label": "Antuono et al. (2012)", "authors": "Antuono M.; Colagrossi A.; Marrone S.", "title": "Numerical diffusive terms in weakly-compressible SPH schemes", "source": "Comput. Phys. Commun", "year": "2012", "doi": "", "raw": "Antuono M.; Colagrossi A.; Marrone S., Numerical diffusive terms in weakly-compressible SPH schemes, Comput. Phys. Commun., 183, pp. 2570-2580, (2012)", "citers": [10, 12, 17, 18, 23, 28, 29, 34, 38, 40, 42, 44, 45, 48, 50, 56, 62], "group": "SPH theory"}, {"id": "dd960dfd98", "study": null, "label": "Fourtakas et al. (2019)", "authors": "Fourtakas G.; Dominguez J.M.; Vacondio R.; Rogers B.D.", "title": "Local uniform stencil (LUST) boundary condition for arbitrary 3-D boundaries in parallel smoothed particle hydrodynamics (SPH) models", "source": "Comput. & Fluids", "year": "2019", "doi": "", "raw": "Fourtakas G.; Dominguez J.M.; Vacondio R.; Rogers B.D., Local uniform stencil (LUST) boundary condition for arbitrary 3-D boundaries in parallel smoothed particle hydrodynamics (SPH) models, Comput. & Fluids, 190, pp. 346-361, (2019)", "citers": [28, 29, 30, 31, 38, 39, 45, 48, 50, 56, 61, 62, 63, 69, 71, 72], "group": "SPH theory"}, {"id": "603b6f39aa", "study": null, "label": "Ren et al. (2015)", "authors": "Ren B.; He M.; Dong P.; Wen H.", "title": "Nonlinear Simulations of Wave-induced Motions of a Freely Floating Body Using WCSPH Method", "source": "Appl Ocean Res", "year": "2015", "doi": "", "raw": "Ren B.; He M.; Dong P.; Wen H., Nonlinear Simulations of Wave-induced Motions of a Freely Floating Body Using WCSPH Method, Appl Ocean Res, 50, pp. 1-12, (2015)", "citers": [9, 10, 11, 12, 15, 16, 18, 20, 22, 28, 29, 31, 52, 55, 59, 73], "group": "SPH theory"}, {"id": "c699038f7b", "study": null, "label": "Monaghan (2005)", "authors": "Monaghan J.J.", "title": "Smoothed particle hydrodynamics", "source": "Rep. Prog. Phys", "year": "2005", "doi": "", "raw": "Monaghan J.J., Smoothed particle hydrodynamics, Rep. Prog. Phys., 68, pp. 1703-1759, (2005)", "citers": [1, 9, 11, 12, 13, 14, 15, 21, 23, 33, 38, 49, 59, 71, 73], "group": "SPH theory"}, {"id": "e02966f183", "study": null, "label": "Gotoh and Khayyer (2018)", "authors": "Gotoh H.; Khayyer A.", "title": "On the State-of-the-art of Particle Methods for Coastal and Ocean Engineering", "source": "Coastal Eng J", "year": "2018", "doi": "", "raw": "Gotoh H.; Khayyer A., On the State-of-the-art of Particle Methods for Coastal and Ocean Engineering, Coastal Eng J, 60, 1, pp. 79-103, (2018)", "citers": [12, 16, 17, 18, 20, 22, 23, 26, 27, 28, 29, 30, 37, 48, 60], "group": "SPH theory"}, {"id": "5bdf456a38", "study": null, "label": "Violeau and Rogers (2016)", "authors": "Violeau D.; Rogers B.D.", "title": "Smoothed particle hydrodynamics (SPH) for free-surface flows: Past, present and future", "source": "J. Hydraul. Res", "year": "2016", "doi": "", "raw": "Violeau D.; Rogers B.D., Smoothed particle hydrodynamics (SPH) for free-surface flows: Past, present and future, J. Hydraul. Res., 54, 1, pp. 1-26, (2016)", "citers": [11, 12, 16, 22, 23, 28, 29, 31, 37, 41, 48, 55, 56, 69, 72], "group": "SPH theory"}, {"id": "f08e303f8c", "study": null, "label": "Altomare et al. (2015)", "authors": "Altomare C.; Crespo A.J.C.; Dominguez J.M.; Gomez-Gesteira M.; Suzuki T.; Verwaest T.", "title": "Applicability of Smoothed Particle Hydrodynamics for estimation of sea wave impact on coastal structures", "source": "Coast. Eng", "year": "2015", "doi": "", "raw": "Altomare C.; Crespo A.J.C.; Dominguez J.M.; Gomez-Gesteira M.; Suzuki T.; Verwaest T., Applicability of Smoothed Particle Hydrodynamics for estimation of sea wave impact on coastal structures, Coast. Eng., 96, pp. 1-12, (2015)", "citers": [9, 12, 18, 21, 24, 25, 37, 43, 44, 51, 60, 69, 71], "group": "SPH theory"}, {"id": "48754b3c55", "study": null, "label": "Dalrymple and Rogers (2006)", "authors": "Dalrymple R.A.; Rogers B.", "title": "Numerical modeling of water waves with the sph method", "source": "Coastal Engineering", "year": "2006", "doi": "", "raw": "Dalrymple R.A.; Rogers B., Numerical modeling of water waves with the sph method, Coastal Engineering, 53, 2-3, pp. 141-147, (2006)", "citers": [1, 7, 10, 11, 12, 13, 17, 19, 41, 45, 48, 52, 71], "group": "SPH theory"}, {"id": "86ea197101", "study": null, "label": "Morris et al. (1997)", "authors": "Morris J.; Fox P.; Zhu Y.", "title": "Modeling Low Reynolds Number Incompressible Flows Using SPH", "source": "J Comput Phys", "year": "1997", "doi": "", "raw": "Morris J.; Fox P.; Zhu Y., Modeling Low Reynolds Number Incompressible Flows Using SPH, J Comput Phys, 136, 1, pp. 214-226, (1997)", "citers": [3, 5, 11, 13, 14, 15, 16, 20, 23, 27, 54, 57, 67], "group": "SPH theory"}, {"id": "b467cd4ae5", "study": null, "label": "Antuono et al. (2011)", "authors": "Antuono M.; Colagrossi A.; Marrone S.; Lugni C.", "title": "Propagation of gravity waves through an SPH scheme with numerical diffusive terms", "source": "Comput. Phys. Commun", "year": "2011", "doi": "", "raw": "Antuono M.; Colagrossi A.; Marrone S.; Lugni C., Propagation of gravity waves through an SPH scheme with numerical diffusive terms, Comput. Phys. Commun., 182, 4, pp. 866-877, (2011)", "citers": [11, 14, 15, 16, 17, 23, 41, 44, 49, 53, 67, 73], "group": "SPH theory"}, {"id": "3cf2536825", "study": null, "label": "Luo et al. (2021)", "authors": "Luo M.; Khayyer A.; Lin P.", "title": "Particle methods in ocean and coastal engineering", "source": "", "year": "2021", "doi": "", "raw": "Luo M.; Khayyer A.; Lin P., Particle methods in ocean and coastal engineering, (2021)", "citers": [28, 37, 40, 41, 48, 50, 59, 60, 71, 72], "group": "SPH theory"}, {"id": "64596d3b81", "study": null, "label": "Bouscasse et al. (2013)", "authors": "Bouscasse B.; Colagrossi A.; Marrone S.; Antuono M.", "title": "Nonlinear water wave interaction with floating bodies in sph", "source": "Journal of Fluids and Structures", "year": "2013", "doi": "", "raw": "Bouscasse B.; Colagrossi A.; Marrone S.; Antuono M., Nonlinear water wave interaction with floating bodies in sph, Journal of Fluids and Structures, 42, pp. 112-129, (2013)", "citers": [9, 10, 11, 15, 16, 17, 19, 21, 31, 41, 42, 71], "group": "SPH theory"}, {"id": "7cadae356b", "study": null, "label": "Lind et al. (2012)", "authors": "Lind S.J.; Xu R.; Stansby P.K.; Rogers B.D.", "title": "Incompressible smoothed particle hydrodynamics for free-surface flows: a generalised diffusion-based algorithm for stability and validations for impulsive flows and propagating waves", "source": "J. Comput. Phys", "year": "2012", "doi": "", "raw": "Lind S.J.; Xu R.; Stansby P.K.; Rogers B.D., Incompressible smoothed particle hydrodynamics for free-surface flows: a generalised diffusion-based algorithm for stability and validations for impulsive flows and propagating waves, J. Comput. Phys., 231, 4, pp. 1499-1523, (2012)", "citers": [6, 11, 12, 13, 16, 44, 50, 53, 71, 73], "group": "SPH theory"}, {"id": "9abcd423cc", "study": null, "label": "English et al. (2022)", "authors": "English A.; Dominguez J.M.; Vacondio R.; Crespo A.J.C.; Stansby P.K.; Lind S.J.; Chiapponi L.; Gomez-Gesteira M.", "title": "Modified dynamic boundary conditions (mDBC) for general-purpose smoothed particle hydrodynamics (SPH): application to tank sloshing, dam break and fish pass problems", "source": "Comput. Part. Mech", "year": "2022", "doi": "", "raw": "English A.; Dominguez J.M.; Vacondio R.; Crespo A.J.C.; Stansby P.K.; Lind S.J.; Chiapponi L.; Gomez-Gesteira M., Modified dynamic boundary conditions (mDBC) for general-purpose smoothed particle hydrodynamics (SPH): application to tank sloshing, dam break and fish pass problems, Comput. Part. Mech., 9, 5, pp. 1-15, (2022)", "citers": [39, 48, 56, 61, 62, 67, 69, 71, 72], "group": "SPH theory"}, {"id": "a9d6406fd6", "study": null, "label": "Shao and Lo (2003)", "authors": "Shao S.D.; Lo E.Y.M.", "title": "Incompressible SPH Method for Simulating Newtonian and Non-Newtonian Flows with a Free Surface", "source": "Adv Water Resour", "year": "2003", "doi": "", "raw": "Shao S.D.; Lo E.Y.M., Incompressible SPH Method for Simulating Newtonian and Non-Newtonian Flows with a Free Surface, Adv Water Resour, 26, 7, pp. 787-800, (2003)", "citers": [1, 6, 8, 10, 11, 18, 20, 32, 58], "group": "SPH theory"}, {"id": "65b7d66207", "study": null, "label": "Khayyer et al. (2018a)", "authors": "Khayyer A.; Gotoh H.; Falahaty H.; Shimizu Y.", "title": "An Enhanced ISPH-SPH Coupled Method for Simulation of Incompressible Fluid-elastic Structure Interactions", "source": "Comput Phys Commun", "year": "2018", "doi": "", "raw": "Khayyer A.; Gotoh H.; Falahaty H.; Shimizu Y., An Enhanced ISPH-SPH Coupled Method for Simulation of Incompressible Fluid-elastic Structure Interactions, Comput Phys Commun, 232, pp. 139-164, (2018)", "citers": [17, 20, 25, 32, 34, 35, 55, 58], "group": "SPH theory"}, {"id": "99e2619637", "study": null, "label": "Liu and Liu (2006)", "authors": "Liu M.B.; Liu G.R.", "title": "Restoring particle consistency in smoothed particle hydrodynamics", "source": "Appl. Numer. Math", "year": "2006", "doi": "", "raw": "Liu M.B.; Liu G.R., Restoring particle consistency in smoothed particle hydrodynamics, Appl. Numer. Math., 56, 1, pp. 19-36, (2006)", "citers": [11, 18, 28, 29, 30, 38, 48, 56, 61, 62], "group": "SPH theory"}, {"id": "e0fd806a7d", "study": null, "label": "Marrone et al. (2011a)", "authors": "Marrone S.; Antuono M.; Colagrossi A.; Colicchio C.; Le Touze D.; Graziani G.", "title": "δ-SPH model for simulating violent impact flows", "source": "Comput. Methods Appl. Mech. Eng", "year": "2011", "doi": "", "raw": "Marrone S.; Antuono M.; Colagrossi A.; Colicchio C.; Le Touze D.; Graziani G., δ-SPH model for simulating violent impact flows, Comput. Methods Appl. Mech. Eng., 200, pp. 1526-1542, (2011)", "citers": [10, 21, 23, 41, 42, 44, 60, 67], "group": "SPH theory"}, {"id": "dde7521405", "study": null, "label": "Vacondio et al. (2013)", "authors": "Vacondio R.; Rogers B.D.; Stansby P.K.; Mignosa P.; Feldman J.", "title": "Variable resolution for SPH: a dynamic particle coalescing and splitting scheme", "source": "Comput. Methods Appl. Mech. Eng", "year": "2013", "doi": "", "raw": "Vacondio R.; Rogers B.D.; Stansby P.K.; Mignosa P.; Feldman J., Variable resolution for SPH: a dynamic particle coalescing and splitting scheme, Comput. Methods Appl. Mech. Eng., 256, pp. 132-148, (2013)", "citers": [13, 25, 28, 34, 35, 41, 49, 69], "group": "SPH theory"}, {"id": "98d8a22d5c", "study": null, "label": "Liu and Liu (2010)", "authors": "Liu M.B.; Liu G.R.", "title": "Smoothed particle hydrodynamics (SPH): an overview and recent developments", "source": "Arch. Comput. Meth. Eng", "year": "2010", "doi": "", "raw": "Liu M.B.; Liu G.R., Smoothed particle hydrodynamics (SPH): an overview and recent developments, Arch. Comput. Meth. Eng., 17, 1, pp. 25-76, (2010)", "citers": [11, 15, 16, 23, 37, 49, 50, 55, 67], "group": "SPH theory"}, {"id": "bf6e8e9d36", "study": null, "label": "Xu et al. (2009)", "authors": "Xu R.; Stansby P.; Laurence D.", "title": "Accuracy and stability in incompressible SPH (ISPH) based on the projection method and a new approach", "source": "J. Comput. Phys", "year": "2009", "doi": "", "raw": "Xu R.; Stansby P.; Laurence D., Accuracy and stability in incompressible SPH (ISPH) based on the projection method and a new approach, J. Comput. Phys., 228, 18, pp. 6703-6725, (2009)", "citers": [6, 11, 16, 25, 34, 35, 55, 69], "group": "SPH theory"}, {"id": "b0e351ab28", "study": null, "label": "Monaghan (1989)", "authors": "Monaghan J.J.", "title": "On the problem of penetration in particle methods", "source": "J. Comput. Phys", "year": "1989", "doi": "", "raw": "Monaghan J.J., On the problem of penetration in particle methods, J. Comput. Phys., 82, 1, pp. 1-15, (1989)", "citers": [7, 15, 23, 41, 42, 59, 67], "group": "SPH theory"}, {"id": "a43d678305", "study": null, "label": "Lo and Shao (2002)", "authors": "Lo E.Y.; Shao S.", "title": "Simulation of near-shore solitary wave mechanics by an incompressible SPH method", "source": "Appl Ocean Res", "year": "2002", "doi": "", "raw": "Lo E.Y.; Shao S., Simulation of near-shore solitary wave mechanics by an incompressible SPH method, Appl Ocean Res, 24, 5, pp. 275-286, (2002)", "citers": [6, 18, 41, 48, 61, 71, 72], "group": "SPH theory"}, {"id": "a3f777a315", "study": null, "label": "Liu and Wang (2020)", "authors": "Liu Z.; Wang Y.", "title": "Numerical studies of submerged moored box-type floating breakwaters with different shapes of cross-sections using SPH", "source": "Coastal Engineering", "year": "2020", "doi": "", "raw": "Liu Z.; Wang Y., Numerical studies of submerged moored box-type floating breakwaters with different shapes of cross-sections using SPH, Coastal Engineering, 158, (2020)", "citers": [34, 46, 47, 53, 59, 73], "group": "SPH theory"}, {"id": "1ed281284e", "study": null, "label": "Randles and Libersky (1996)", "authors": "Randles P.W.; Libersky L.D.", "title": "Smoothed particle hydrodynamics: some recent improvements and applications", "source": "Comput. Methods Appl. Mech. Eng", "year": "1996", "doi": "", "raw": "Randles P.W.; Libersky L.D., Smoothed particle hydrodynamics: some recent improvements and applications, Comput. Methods Appl. Mech. Eng., 139, pp. 375-408, (1996)", "citers": [26, 36, 37, 44, 55, 60], "group": "SPH theory"}, {"id": "b7a8be00d4", "study": null, "label": "Adami et al. (2012)", "authors": "Adami S.; Hu X.Y.; Adams N.A.", "title": "A Generalized Wall Boundary Condition for Smoothed Particle Hydrodynamics", "source": "J Comput Phys", "year": "2012", "doi": "", "raw": "Adami S.; Hu X.Y.; Adams N.A., A Generalized Wall Boundary Condition for Smoothed Particle Hydrodynamics, J Comput Phys, 231, 21, pp. 7057-7075, (2012)", "citers": [6, 14, 20, 53, 63], "group": "SPH theory"}, {"id": "0de5de51f9", "study": null, "label": "Zhang et al. (2017)", "authors": "Zhang C.; Hu X.Y.; Adams N.A.", "title": "A weakly compressible SPH method based on a low-dissipation Riemann solver [J]", "source": "Journal of Computational Physics", "year": "2017", "doi": "", "raw": "Zhang C.; Hu X.Y.; Adams N.A., A weakly compressible SPH method based on a low-dissipation Riemann solver [J], Journal of Computational Physics, 335, pp. 605-620, (2017)", "citers": [26, 27, 54, 57, 63], "group": "SPH theory"}, {"id": "ae15eebed9", "study": null, "label": "Shao (2010)", "authors": "Shao S.D.", "title": "Incompressible SPH Flow Model for Wave Interactions with Porous Media", "source": "Coastal Eng", "year": "2010", "doi": "", "raw": "Shao S.D., Incompressible SPH Flow Model for Wave Interactions with Porous Media, Coastal Eng, 57, 3, pp. 304-316, (2010)", "citers": [5, 10, 11, 20, 32], "group": "SPH theory"}, {"id": "e079bbb3ed", "study": null, "label": "Khayyer et al. (2018c)", "authors": "Khayyer A.; Gotoh H.; Falahaty H.; Shimizu Y.", "title": "Towards development of enhanced fully-Lagrangian mesh-free computational methods for fluid-structure interaction", "source": "J. Hydrodyn", "year": "2018", "doi": "", "raw": "Khayyer A.; Gotoh H.; Falahaty H.; Shimizu Y., Towards development of enhanced fully-Lagrangian mesh-free computational methods for fluid-structure interaction, J. Hydrodyn., 30, pp. 49-61, (2018)", "citers": [25, 34, 35, 46, 47], "group": "SPH theory"}, {"id": "d29eddc296", "study": null, "label": "He et al. (2020)", "authors": "He F.; Zhang H.; Huang C.; Liu M.", "title": "Numerical investigation of the solitary wave breaking over a slope by using the finite particle method", "source": "Coast. Eng", "year": "2020", "doi": "", "raw": "He F.; Zhang H.; Huang C.; Liu M., Numerical investigation of the solitary wave breaking over a slope by using the finite particle method, Coast. Eng., 156, (2020)", "citers": [23, 34, 35, 41, 53], "group": "SPH theory"}, {"id": "556f0fd999", "study": null, "label": "Marrone et al. (2011b)", "authors": "Marrone S.; Antuono M.; Colagrossi A.; Colicchio G.; Le Touze D.; Graziani G.", "title": "Delta-SPH model for simulating violent impact flows", "source": "Comput. Methods Appl. Mech. Eng. - Comput. Methods Appl. Mech. Eng", "year": "2011", "doi": "", "raw": "Marrone S.; Antuono M.; Colagrossi A.; Colicchio G.; Le Touze D.; Graziani G., Delta-SPH model for simulating violent impact flows, Comput. Methods Appl. Mech. Eng. - Comput. Methods Appl. Mech. Eng., 200, pp. 1526-1542, (2011)", "citers": [11, 15, 16, 17, 18, 28], "group": "SPH theory"}, {"id": "7375de1f5e", "study": null, "label": "Oger et al. (2006)", "authors": "Oger G.; Doring M.; Alessandrini B.; Ferrant P.", "title": "Two-dimensional sph simulations of wedge water entries", "source": "Journal of Computational Physics", "year": "2006", "doi": "", "raw": "Oger G.; Doring M.; Alessandrini B.; Ferrant P., Two-dimensional sph simulations of wedge water entries, Journal of Computational Physics, 213, 2, pp. 803-822, (2006)", "citers": [1, 6, 15, 17, 33], "group": "SPH theory"}, {"id": "5bb9c7c212", "study": null, "label": "Liu and Liu (2003a)", "authors": "Liu G.R.; Liu M.B.", "title": "Smoothed Particle Hydrodynamics: a Meshfree Particle Method", "source": "", "year": "2003", "doi": "", "raw": "Liu G.R.; Liu M.B., Smoothed Particle Hydrodynamics: a Meshfree Particle Method, (2003)", "citers": [3, 11, 15, 40, 71], "group": "SPH theory"}, {"id": "863a87605c", "study": null, "label": "Gotoh et al. (2021)", "authors": "Gotoh H.; Khayyer A.; Shimizu Y.", "title": "Entirely Lagrangian meshfree computational methods for hydroelastic fluid-structure interactions in ocean engineering—Reliability, adaptivity and generality", "source": "Appl Ocean Res", "year": "2021", "doi": "", "raw": "Gotoh H.; Khayyer A.; Shimizu Y., Entirely Lagrangian meshfree computational methods for hydroelastic fluid-structure interactions in ocean engineering—Reliability, adaptivity and generality, Appl Ocean Res, 115, (2021)", "citers": [37, 41, 53, 56, 71], "group": "SPH theory"}, {"id": "97e2e00988", "study": null, "label": "Lyu et al. (2022)", "authors": "Lyu H.-G.; Sun P.-N.; Huang X.-T.; Zhong S.-Y.; Peng Y.-X.; Jiang T.; Ji C.-N.", "title": "A review of SPH techniques for hydrodynamic simulations of ocean energy devices", "source": "Energies", "year": "2022", "doi": "", "raw": "Lyu H.-G.; Sun P.-N.; Huang X.-T.; Zhong S.-Y.; Peng Y.-X.; Jiang T.; Ji C.-N., A review of SPH techniques for hydrodynamic simulations of ocean energy devices, Energies, 15, 2, (2022)", "citers": [37, 41, 53, 67, 71], "group": "SPH theory"}, {"id": "28e693c8ec", "study": null, "label": "Sun et al. (2017)", "authors": "Sun P.; Colagrossi A.; Marrone S.; Zhang A.", "title": "The δplus-SPH model: Simple procedures for a further improvement of the SPH scheme", "source": "Comput Methods Appl Mech Engrg", "year": "2017", "doi": "", "raw": "Sun P.; Colagrossi A.; Marrone S.; Zhang A., The δplus-SPH model: Simple procedures for a further improvement of the SPH scheme, Comput Methods Appl Mech Engrg, 315, pp. 25-49, (2017)", "citers": [11, 41, 42, 49, 53], "group": "SPH theory"}, {"id": "942144354e", "study": null, "label": "Jin et al. (2018)", "authors": "Jin S.; Patton R.J.; Guo B.", "title": "Viscosity effect on a point absorber wave energy converter hydrodynamics validated by simulation and experiment", "source": "Renew. Energy", "year": "2018", "doi": "", "raw": "Jin S.; Patton R.J.; Guo B., Viscosity effect on a point absorber wave energy converter hydrodynamics validated by simulation and experiment, Renew. Energy, 129, pp. 500-512, (2018)", "citers": [22, 29, 30, 33, 45, 48], "group": "SPH theory"}, {"id": "4a038b92c4", "study": null, "label": "Khayyer et al. (2008)", "authors": "Khayyer A.; Gotoh H.; Shao S.D.", "title": "Corrected Incompressible SPH Method for Accurate Water Surface Tracking in Breaking Waves", "source": "Coastal Eng", "year": "2008", "doi": "", "raw": "Khayyer A.; Gotoh H.; Shao S.D., Corrected Incompressible SPH Method for Accurate Water Surface Tracking in Breaking Waves, Coastal Eng, 55, 3, pp. 236-250, (2008)", "citers": [8, 11, 20, 25], "group": "SPH theory"}, {"id": "de97260cfc", "study": null, "label": "Khayyer et al. (2018b)", "authors": "Khayyer A.; Gotoh H.; Shimizu Y.", "title": "Development of a Projection-based SPH Method for Numerical Wave Flume with Porous Media of Variable Porosity", "source": "Coastal Eng", "year": "2018", "doi": "", "raw": "Khayyer A.; Gotoh H.; Shimizu Y., Development of a Projection-based SPH Method for Numerical Wave Flume with Porous Media of Variable Porosity, Coastal Eng, 140, pp. 1-22, (2018)", "citers": [16, 17, 20, 22, 27], "group": "SPH theory"}, {"id": "83d46df330", "study": null, "label": "Antoci et al. (2007)", "authors": "Antoci C.; Gallati M.; Sibilla S.", "title": "Numerical Simulation of Fluid–structure Interaction by SPH", "source": "Comput Struct", "year": "2007", "doi": "", "raw": "Antoci C.; Gallati M.; Sibilla S., Numerical Simulation of Fluid–structure Interaction by SPH, Comput Struct, 85, 11-14, pp. 879-890, (2007)", "citers": [3, 8, 20, 27, 33, 36], "group": "SPH theory"}, {"id": "c5b8e02c6a", "study": null, "label": "Liu et al. (2013)", "authors": "Liu X.; Xu H.; Shao S.; Lin P.", "title": "An improved incompressible SPH model for simulation of wave-structure interaction", "source": "Comput. Fluid", "year": "2013", "doi": "", "raw": "Liu X.; Xu H.; Shao S.; Lin P., An improved incompressible SPH model for simulation of wave-structure interaction, Comput. Fluid, 71, pp. 113-123, (2013)", "citers": [25, 32, 34, 35], "group": "SPH theory"}, {"id": "66db051006", "study": null, "label": "Zhang et al. (2021)", "authors": "Zhang C.; Rezavand M.; Hu X.", "title": "A multi-resolution SPH method for fluid-structure interactions", "source": "J. Comput. Phys", "year": "2021", "doi": "", "raw": "Zhang C.; Rezavand M.; Hu X., A multi-resolution SPH method for fluid-structure interactions, J. Comput. Phys., 429, (2021)", "citers": [26, 27, 28, 57], "group": "SPH theory"}, {"id": "0617557713", "study": null, "label": "Huang (2015)", "authors": "Huang C.", "title": "A kernel gradient free (KGF) SPH method", "source": "Int. J. Numer. Meth. Fluid", "year": "2015", "doi": "", "raw": "Huang C., A kernel gradient free (KGF) SPH method, Int. J. Numer. Meth. Fluid., 78, 11, pp. 691-707, (2015)", "citers": [11, 15, 49, 53], "group": "SPH theory"}, {"id": "08ab83cbb0", "study": null, "label": "Shadloo et al. (2016)", "authors": "Shadloo M.S.; Oger G.; Le Touze D.", "title": "Smoothed particle hydrodynamics method for fluid flows, towards industrial applications: Motivations, current state, and challenges", "source": "Comput & Fluids", "year": "2016", "doi": "", "raw": "Shadloo M.S.; Oger G.; Le Touze D., Smoothed particle hydrodynamics method for fluid flows, towards industrial applications: Motivations, current state, and challenges, Comput & Fluids, 136, pp. 11-34, (2016)", "citers": [33, 41, 55, 61], "group": "SPH theory"}, {"id": "d18d194cf3", "study": null, "label": "Crespo et al. (2015)", "authors": "Crespo A.J.C.; Dominguez J.M.; Rogers B.D.; Gomez-Gesteira M.; Longshaw S.; Canelas R.B.; Vacondio R.; Barreiro A.; Garcia-Feal O.", "title": "DualSPHysics: open-source parallel CFD solver based on smoothed particle hydrodynamics (SPH)", "source": "Comput. Phys. Commun", "year": "2015", "doi": "", "raw": "Crespo A.J.C.; Dominguez J.M.; Rogers B.D.; Gomez-Gesteira M.; Longshaw S.; Canelas R.B.; Vacondio R.; Barreiro A.; Garcia-Feal O., DualSPHysics: open-source parallel CFD solver based on smoothed particle hydrodynamics (SPH), Comput. Phys. Commun., 187, pp. 204-216, (2015)", "citers": [6, 9, 12, 13, 15, 17, 18, 21, 22, 25, 27, 29, 30, 31, 34, 35, 39, 40, 41, 43, 44, 50, 52, 60, 63, 64, 66], "group": "SPH implementations"}, {"id": "e46f179664", "study": null, "label": "Gomez-Gesteira et al. (2012)", "authors": "Gomez-Gesteira M.; Rogers B.D.; Crespo A.J.C.; Dalrymple R.A.; Narayanaswamy M.; Dominguez J.M.", "title": "SPHysics – development of a free-surface fluid solver–Part1: theory and formulations", "source": "Comput. Geosci", "year": "2012", "doi": "", "raw": "Gomez-Gesteira M.; Rogers B.D.; Crespo A.J.C.; Dalrymple R.A.; Narayanaswamy M.; Dominguez J.M., SPHysics – development of a free-surface fluid solver–Part1: theory and formulations, Comput. Geosci., 48, pp. 289-299, (2012)", "citers": [3, 5, 6, 7, 28, 30, 36, 38, 43, 44, 51, 56, 59, 65, 69, 71, 72], "group": "SPH implementations"}, {"id": "91a9691712", "study": null, "label": "Dominguez et al. (2022)", "authors": "Dominguez J.M.; Fourtakas G.; Altomare C.; Canelas R.B.; Tafuni A.; Garcia-Feal O.; Martinez-Estevez I.; Mokos A.; Vacondio R.; Crespo A.J.C.; Rogers B.D.; Stansby P.K.; Gomez-Gesteira M.", "title": "DualSPHysics: from fluid dynamics to multiphysics problems", "source": "Comput. Part. Mech", "year": "2022", "doi": "", "raw": "Dominguez J.M.; Fourtakas G.; Altomare C.; Canelas R.B.; Tafuni A.; Garcia-Feal O.; Martinez-Estevez I.; Mokos A.; Vacondio R.; Crespo A.J.C.; Rogers B.D.; Stansby P.K.; Gomez-Gesteira M., DualSPHysics: from fluid dynamics to multiphysics problems, Comput. Part. Mech., 9, 5, pp. 867-895, (2022)", "citers": [39, 45, 48, 56, 61, 63, 71, 72], "group": "SPH implementations"}, {"id": "549d16360c", "study": null, "label": "Dominguez et al. (2013)", "authors": "Dominguez J.M.; Crespo A.J.C.; Gomez-Gesteira M.", "title": "Optimization Strategies for CPU and GPU Implementations of a Smoothed Particle Hydrodynamics Method", "source": "Comput. Phys. Commun", "year": "2013", "doi": "", "raw": "Dominguez J.M.; Crespo A.J.C.; Gomez-Gesteira M., Optimization Strategies for CPU and GPU Implementations of a Smoothed Particle Hydrodynamics Method, Comput. Phys. Commun, 184, pp. 617-627, (2013)", "citers": [9, 12, 21, 30, 56], "group": "SPH implementations"}, {"id": "a74d2032b4", "study": null, "label": "Crespo et al. (2011)", "authors": "Crespo A.J.C.; Dominguez J.M.; Barreiro A.; Gomez-Gesteira M.; Rogers B.D.", "title": "GPUs, a new tool of acceleration in CFD: efficiency and reliability on Smoothed Particle Hydrodynamics methods", "source": "PLoS One", "year": "2011", "doi": "", "raw": "Crespo A.J.C.; Dominguez J.M.; Barreiro A.; Gomez-Gesteira M.; Rogers B.D., GPUs, a new tool of acceleration in CFD: efficiency and reliability on Smoothed Particle Hydrodynamics methods, PLoS One, 6, 6, (2011)", "citers": [17, 30, 43, 44], "group": "SPH implementations"}, {"id": "38d06c8ad2", "study": null, "label": "Tafuni et al. (2018)", "authors": "Tafuni A.; Dominguez J.M.; Vacondio R.; Crespo A.J.", "title": "A versatile algorithm for the treatment of open boundary conditions in Smoothed particle hydrodynamics GPU models", "source": "Comput. Methods Appl. Mech. Eng", "year": "2018", "doi": "", "raw": "Tafuni A.; Dominguez J.M.; Vacondio R.; Crespo A.J., A versatile algorithm for the treatment of open boundary conditions in Smoothed particle hydrodynamics GPU models, Comput. Methods Appl. Mech. Eng, 342, pp. 604-624, (2018)", "citers": [18, 29, 56, 61], "group": "SPH implementations"}, {"id": "f60b98add9", "study": null, "label": "Edge et al. (2014)", "authors": "Edge B.L.; Gamiel K.; Dalrymple R.A.; Herault A.; Bilotta G.", "title": "Application of Gpusph to Design of Wave Energy, Proceedings of the 9th SPHERIC International Workshop", "source": "", "year": "2014", "doi": "", "raw": "Edge B.L.; Gamiel K.; Dalrymple R.A.; Herault A.; Bilotta G., Application of Gpusph to Design of Wave Energy, Proceedings of the 9th SPHERIC International Workshop, (2014)", "citers": [9, 19, 22, 30], "group": "SPH implementations"}, {"id": "fac35c5a3b", "study": null, "label": "Zhang et al. (2012)", "authors": "Zhang Y.; Zou Q.P.; Greaves D.", "title": "Air-water two-phase flow modelling of hydrodynamic performance of an oscillating water column device", "source": "Renew. Energy", "year": "2012", "doi": "", "raw": "Zhang Y.; Zou Q.P.; Greaves D., Air-water two-phase flow modelling of hydrodynamic performance of an oscillating water column device, Renew. Energy, 41, pp. 159-170, (2012)", "citers": [7, 9, 10, 23, 28, 42, 49], "group": "SPH implementations"}, {"id": "b2bc2c1912", "study": null, "label": "Dominguez et al. (2019)", "authors": "Dominguez J.M.; Crespo A.J.C.; Hall M.; Altomare C.; Wu M.; Stratigaki V.; Troch P.; Cappietti L.; Gomez-Gesteira M.", "title": "SPH simulation of floating structures with moorings", "source": "Cost Eng", "year": "2019", "doi": "", "raw": "Dominguez J.M.; Crespo A.J.C.; Hall M.; Altomare C.; Wu M.; Stratigaki V.; Troch P.; Cappietti L.; Gomez-Gesteira M., SPH simulation of floating structures with moorings, Cost Eng., 153, (2019)", "citers": [22, 24, 25, 28, 29, 30, 31, 37, 38, 43, 44, 45, 48, 50, 53, 55, 56, 61, 69, 72], "group": "Couplings and coupled libraries"}, {"id": "37604f3c0d", "study": null, "label": "Tasora et al. (2016)", "authors": "Tasora A.; Serban R.; Mazhar H.; Pazouki A.; Melanz D.; Fleischmann J.; Taylor M.; Sugiyama H.; Negrut D.", "title": "Chrono: an open source multi-physics dynamics engine", "source": "Lecture Notes in Computer Science", "year": "2016", "doi": "", "raw": "Tasora A.; Serban R.; Mazhar H.; Pazouki A.; Melanz D.; Fleischmann J.; Taylor M.; Sugiyama H.; Negrut D., Chrono: an open source multi-physics dynamics engine, Lecture Notes in Computer Science, pp. 19-49, (2016)", "citers": [19, 21, 22, 30, 38, 39, 43, 44, 56, 61, 62, 69, 72], "group": "Couplings and coupled libraries"}, {"id": "36114c3392", "study": null, "label": "Altomare et al. (2017)", "authors": "Altomare C.; Dominguez J.M.; Crespo A.J.C.; Gonzalez-Cao J.; Suzuki T.; Gomez-Gesteira M.; Troch P.", "title": "Long-crested wave generation and absorption for SPH-based DualSPHysics model", "source": "Coast. Eng", "year": "2017", "doi": "", "raw": "Altomare C.; Dominguez J.M.; Crespo A.J.C.; Gonzalez-Cao J.; Suzuki T.; Gomez-Gesteira M.; Troch P., Long-crested wave generation and absorption for SPH-based DualSPHysics model, Coast. Eng., 127, pp. 37-54, (2017)", "citers": [11, 12, 16, 18, 21, 22, 23, 28, 29, 30, 31, 33, 34, 35, 38, 39, 40, 41, 43, 44, 45, 48, 50, 51, 52, 55, 56, 63, 67, 69, 71, 72], "group": "Couplings and coupled libraries"}, {"id": "60ff7cdb1f", "study": null, "label": "Tasora and Anitescu (2011)", "authors": "Tasora A.; Anitescu M.", "title": "A matrix-free cone complementarity approach for solving large-scale, nonsmooth, rigid body dynamics", "source": "Comput. Methods Appl. Mech. Engrg", "year": "2011", "doi": "", "raw": "Tasora A.; Anitescu M., A matrix-free cone complementarity approach for solving large-scale, nonsmooth, rigid body dynamics, Comput. Methods Appl. Mech. Engrg., 200, 5-8, pp. 439-453, (2011)", "citers": [13, 21, 28, 29, 38, 39, 48, 71], "group": "Couplings and coupled libraries"}, {"id": "4571b88afc", "study": null, "label": "Martinez-Estevez et al. (2023)", "authors": "Martinez-Estevez I.; Dominguez J.M.; Tagliafierro B.; Canelas R.B.; Garcia-Feal O.; Crespo A.J.C.; Gomez-Gesteira M.", "title": "Coupling of an SPH-based solver with a multiphysics library", "source": "Comput. Phys. Comm", "year": "2023", "doi": "", "raw": "Martinez-Estevez I.; Dominguez J.M.; Tagliafierro B.; Canelas R.B.; Garcia-Feal O.; Crespo A.J.C.; Gomez-Gesteira M., Coupling of an SPH-based solver with a multiphysics library, Comput. Phys. Comm., 283, (2023)", "citers": [48, 56, 61, 62, 63, 69, 71, 72], "group": "Couplings and coupled libraries"}, {"id": "c16778d87d", "study": null, "label": "Hall and Goupee (2015)", "authors": "Hall M.; Goupee A.", "title": "Validation of a lumped-mass mooring line model with DeepCwind semisubmersible model test data", "source": "Ocean Eng", "year": "2015", "doi": "", "raw": "Hall M.; Goupee A., Validation of a lumped-mass mooring line model with DeepCwind semisubmersible model test data, Ocean Eng., 104, pp. 590-603, (2015)", "citers": [12, 31, 38, 72], "group": "Couplings and coupled libraries"}, {"id": "fb6c52ade1", "study": null, "label": "Cui et al. (2022)", "authors": "Cui J.; Chen X.; Sun P.-N.; Li M.-Y.", "title": "Numerical investigation on the hydrodynamic behavior of a floating breakwater with moon pool through a coupling SPH model", "source": "Ocean Engineering", "year": "2022", "doi": "", "raw": "Cui J.; Chen X.; Sun P.-N.; Li M.-Y., Numerical investigation on the hydrodynamic behavior of a floating breakwater with moon pool through a coupling SPH model, Ocean Engineering, 248, (2022)", "citers": [43, 53, 59, 68], "group": "Couplings and coupled libraries"}, {"id": "d260f590b8", "study": null, "label": "Altomare et al. (2018)", "authors": "Altomare C.; Tagliafierro B.; Dominguez J.; Suzuki T.; Viccione G.", "title": "Improved relaxation zone method in SPH-based model for coastal engineering applications", "source": "Appl Ocean Res", "year": "2018", "doi": "", "raw": "Altomare C.; Tagliafierro B.; Dominguez J.; Suzuki T.; Viccione G., Improved relaxation zone method in SPH-based model for coastal engineering applications, Appl Ocean Res, 81, pp. 15-33, (2018)", "citers": [18, 38, 41, 56, 61, 64], "group": "Couplings and coupled libraries"}, {"id": "260aa65cbb", "study": null, "label": "Gomez-Gesteira et al. (2010)", "authors": "Gomez-Gesteira M.; Rogers B.D.; Dalrymple R.A.; Crespo A.J.C.", "title": "State-of-the-art of classical SPH for free-surface flows", "source": "Journal of Hydraulic Research", "year": "2010", "doi": "", "raw": "Gomez-Gesteira M.; Rogers B.D.; Dalrymple R.A.; Crespo A.J.C., State-of-the-art of classical SPH for free-surface flows, Journal of Hydraulic Research, 48, pp. 6-27, (2010)", "citers": [3, 5, 7, 13, 21, 30], "group": "WEC background"}, {"id": "c89ed2f4bf", "study": null, "label": "Davidson and Costello (2020)", "authors": "Davidson J.; Costello R.", "title": "Efficient Nonlinear Hydrodynamic Models for Wave Energy Converter Design—A Scoping Study", "source": "J. Mar. Sci. Eng", "year": "2020", "doi": "", "raw": "Davidson J.; Costello R., Efficient Nonlinear Hydrodynamic Models for Wave Energy Converter Design—A Scoping Study, J. Mar. Sci. Eng, 8, (2020)", "citers": [22, 30, 32, 38, 60, 69], "group": "WEC background"}, {"id": "90437b3791", "study": null, "label": "Lopez et al. (2013)", "authors": "Lopez I.; Andreu J.; Ceballos S.; Martinez De Alegria I.; Kortabarria I.", "title": "Review of wave energy technologies and the necessary power-equipment", "source": "Renew. Sustain. Energy Rev", "year": "2013", "doi": "", "raw": "Lopez I.; Andreu J.; Ceballos S.; Martinez De Alegria I.; Kortabarria I., Review of wave energy technologies and the necessary power-equipment, Renew. Sustain. Energy Rev., 27, pp. 413-434, (2013)", "citers": [14, 37, 51, 53, 71], "group": "WEC background"}, {"id": "b99a0173a9", "study": null, "label": "Falnes (2002a)", "authors": "Falnes J.", "title": "Ocean Waves and Oscillating Systems", "source": "", "year": "2002", "doi": "", "raw": "Falnes J., Ocean Waves and Oscillating Systems, (2002)", "citers": [5, 22, 48, 51, 71], "group": "WEC background"}, {"id": "d8b1cc76ea", "study": null, "label": "Babarit and Delhommeau (2015)", "authors": "Babarit A.; Delhommeau G.", "title": "Theoretical and numerical aspects of the open source BEM solver NEMOH", "source": "Proc. 11th Eur. Wave Tidal Energy Conf", "year": "2015", "doi": "", "raw": "Babarit A.; Delhommeau G., Theoretical and numerical aspects of the open source BEM solver NEMOH, Proc. 11th Eur. Wave Tidal Energy Conf., pp. 1-12, (2015)", "citers": [9, 29, 30, 48, 51], "group": "WEC background"}, {"id": "295234a834", "study": null, "label": "Crespo et al. (2023)", "authors": "Crespo A.; Tagliafierro B.; Martinez-Estevez I.; Dominguez J.M.; deCastro M.; Gomez-Gesteira M.; Altomare C.; Brito M.; Bernardo F.; Ferreira R.M.; Capasso S.; Viccione G.; Quartier N.; Stratigaki V.; Troch P.; Simonetti I.; Cappietti L.; Goteman M.; Engstrom J.; Clemente D.; Rosa-Santos P.; Taveira-Pinto F.; Bacelli G.; Coe R.; Fourtakas G.; Rogers B.; Stansby P.", "title": "On the state-of-the-art of CFD simulations for wave energy converters within the open-source numerical framework of DualSPHysics", "source": "Proc. Eur. Wave Tidal Energy Conf", "year": "2023", "doi": "", "raw": "Crespo A.; Tagliafierro B.; Martinez-Estevez I.; Dominguez J.M.; deCastro M.; Gomez-Gesteira M.; Altomare C.; Brito M.; Bernardo F.; Ferreira R.M.; Capasso S.; Viccione G.; Quartier N.; Stratigaki V.; Troch P.; Simonetti I.; Cappietti L.; Goteman M.; Engstrom J.; Clemente D.; Rosa-Santos P.; Taveira-Pinto F.; Bacelli G.; Coe R.; Fourtakas G.; Rogers B.; Stansby P., On the state-of-the-art of CFD simulations for wave energy converters within the open-source numerical framework of DualSPHysics, Proc. Eur. Wave Tidal Energy Conf., 15, (2023)", "citers": [56, 61, 69, 71, 72], "group": "WEC background"}, {"id": "1c22edb714", "study": null, "label": "Windt et al. (2018)", "authors": "Windt C.; Davidson J.; Ringwood J.V.", "title": "High-fidelity numerical modelling of ocean wave energy systems: a review of computational fluid dynamics-based numerical wave tanks", "source": "Renew. Sustain. Energy Rev", "year": "2018", "doi": "", "raw": "Windt C.; Davidson J.; Ringwood J.V., High-fidelity numerical modelling of ocean wave energy systems: a review of computational fluid dynamics-based numerical wave tanks, Renew. Sustain. Energy Rev., 93, pp. 610-630, (2018)", "citers": [19, 25, 27, 28, 29, 38, 48, 51, 56, 60, 61, 62, 69, 71, 72], "group": "WEC background"}, {"id": "9f4c73c833", "study": null, "label": "Drew et al. (2009)", "authors": "Drew B.; Plummer A.; Sahinkaya M.", "title": "A review of wave energy converter technology", "source": "Proc Inst Mech Eng", "year": "2009", "doi": "", "raw": "Drew B.; Plummer A.; Sahinkaya M., A review of wave energy converter technology, Proc Inst Mech Eng, 223, pp. 887-902, (2009)", "citers": [9, 22, 23, 24, 29, 30, 37, 48, 55, 60, 71], "group": "WEC background"}, {"id": "fd41855b1b", "study": null, "label": "Li and Yu (2012)", "authors": "Li Y.; Yu Y.H.", "title": "A synthesis of numerical methods for modeling wave energy converter-point absorbers", "source": "Renew. Sustain. Energy Rev", "year": "2012", "doi": "", "raw": "Li Y.; Yu Y.H., A synthesis of numerical methods for modeling wave energy converter-point absorbers, Renew. Sustain. Energy Rev., 16, pp. 4352-4364, (2012)", "citers": [22, 29, 30, 33, 38, 40, 45, 48, 50, 52], "group": "WEC background"}, {"id": "aba4051902", "study": null, "label": "Penalba et al. (2017)", "authors": "Penalba M.; Giorgi G.; V Ringwood J.", "title": "Mathematical modelling of wave energy converters : a review of nonlinear approaches", "source": "Renew. Sustain. Energy Rev", "year": "2017", "doi": "", "raw": "Penalba M.; Giorgi G.; V Ringwood J., Mathematical modelling of wave energy converters : a review of nonlinear approaches, Renew. Sustain. Energy Rev., 78, pp. 1188-1207, (2017)", "citers": [19, 22, 27, 30, 38, 50, 51, 61, 62, 71], "group": "WEC background"}, {"id": "1f5d126ea1", "study": null, "label": "Falcao (2010)", "authors": "Falcao A.F.D.O.", "title": "Wave energy utilization: a review of the technologies", "source": "Renew. Sustain. Energy Rev", "year": "2010", "doi": "", "raw": "Falcao A.F.D.O., Wave energy utilization: a review of the technologies, Renew. Sustain. Energy Rev., 14, pp. 899-918, (2010)", "citers": [9, 38, 43, 49, 51, 67, 71], "group": "WEC background"}, {"id": "668a4140d1", "study": null, "label": "Babarit et al. (2012)", "authors": "Babarit A.; Hals J.; Muliawan M.; Kurniawan A.; Moan T.; Krokstad J.", "title": "Numerical benchmarking study of a selection of wave energy converters", "source": "Renewable Energy", "year": "2012", "doi": "", "raw": "Babarit A.; Hals J.; Muliawan M.; Kurniawan A.; Moan T.; Krokstad J., Numerical benchmarking study of a selection of wave energy converters, Renewable Energy, 41, pp. 44-63, (2012)", "citers": [6, 21, 24, 30, 43, 52, 71], "group": "WEC background"}, {"id": "bef41aad67", "study": null, "label": "Dias et al. (2017)", "authors": "Dias F.; Renzi E.; Gallagher S.; Sarkar D.; Wei Y.; Abadie T.; Cummins C.; Rafiee A.", "title": "Analytical and computational modelling for wave energy systems: The example of oscillating wave surge converters", "source": "Acta Mechanica Sinica", "year": "2017", "doi": "", "raw": "Dias F.; Renzi E.; Gallagher S.; Sarkar D.; Wei Y.; Abadie T.; Cummins C.; Rafiee A., Analytical and computational modelling for wave energy systems: The example of oscillating wave surge converters, Acta Mechanica Sinica, 4, pp. 647-662, (2017)", "citers": [11, 16, 17, 21, 24, 27, 36, 37], "group": "WEC background"}, {"id": "4cd1cf26d0", "study": null, "label": "Falcao and Henriques (2016)", "authors": "Falcao A.F.D.O.; Henriques J.C.C.", "title": "Oscillating–water–column wave energy converters and air turbines: A review", "source": "Renew. Energy", "year": "2016", "doi": "", "raw": "Falcao A.F.D.O.; Henriques J.C.C., Oscillating–water–column wave energy converters and air turbines: A review, Renew. Energy, 85, pp. 1391-1424, (2016)", "citers": [9, 23, 40, 42, 69, 72], "group": "WEC background"}, {"id": "f687077994", "study": null, "label": "Dean and Dalrymple (1991)", "authors": "Dean R.G.; Dalrymple R.A.", "title": "Water Wave Mechanics for Engineers and Scientists", "source": "", "year": "1991", "doi": "", "raw": "Dean R.G.; Dalrymple R.A., Water Wave Mechanics for Engineers and Scientists, (1991)", "citers": [5, 8, 16, 17, 56], "group": "WEC background"}, {"id": "0cecaf25bd", "study": null, "label": "Folley (2016)", "authors": "Folley M.", "title": "Numerical Modelling of Wave Energy Converters", "source": "", "year": "2016", "doi": "", "raw": "Folley M., Numerical Modelling of Wave Energy Converters, (2016)", "citers": [22, 28, 29, 48, 60], "group": "WEC background"}, {"id": "711962ee0c", "study": null, "label": "Ning (2015)", "authors": "Ning D.Z.", "title": "Investigation of hydrodynamic performance of an OWC (oscillating water column) wave energy device using a fully nonlinear HOBEM (higher-order boundary element method)", "source": "Energy", "year": "2015", "doi": "", "raw": "Ning D.Z., Investigation of hydrodynamic performance of an OWC (oscillating water column) wave energy device using a fully nonlinear HOBEM (higher-order boundary element method), Energy, 83, pp. 177-188, (2015)", "citers": [10, 15, 37, 42, 67], "group": "WEC background"}, {"id": "b457ba8396", "study": null, "label": "Evans (1978)", "authors": "Evans D.V.", "title": "The oscillating water column wave–energy device", "source": "IMA J. Appl. Math", "year": "1978", "doi": "", "raw": "Evans D.V., The oscillating water column wave–energy device, IMA J. Appl. Math., 22, 4, pp. 423-433, (1978)", "citers": [9, 10, 23, 40, 42], "group": "WEC background"}, {"id": "25233e84e8", "study": null, "label": "Ransley et al. (2017)", "authors": "Ransley E.J.; Greaves D.; Raby A.; Simmonds D.; Hann M.", "title": "Survivability of wave energy converters using CFD", "source": "Renew. Energy", "year": "2017", "doi": "", "raw": "Ransley E.J.; Greaves D.; Raby A.; Simmonds D.; Hann M., Survivability of wave energy converters using CFD, Renew. Energy, 109, pp. 235-247, (2017)", "citers": [37, 38, 61, 69, 72], "group": "WEC background"}, {"id": "0b05eb0e92", "study": null, "label": "Babarit (2015)", "authors": "Babarit A.", "title": "A database of capture width ratio of wave energy converters", "source": "Renew. Energy", "year": "2015", "doi": "", "raw": "Babarit A., A database of capture width ratio of wave energy converters, Renew. Energy, 80, pp. 610-628, (2015)", "citers": [33, 44, 51, 71], "group": "WEC background"}, {"id": "b11c6693a8", "study": null, "label": "Michele and Renzi (2019)", "authors": "Michele S.; Renzi E.", "title": "A second-order theory for an array of curved wave energy converters in open sea", "source": "J. Fluid Struct", "year": "2019", "doi": "", "raw": "Michele S.; Renzi E., A second-order theory for an array of curved wave energy converters in open sea, J. Fluid Struct., 88, pp. 315-330, (2019)", "citers": [34, 35, 39, 44], "group": "WEC background"}, {"id": "8bbb476c16", "study": null, "label": "Tay and Venugopal (2017)", "authors": "Tay Z.Y.; Venugopal V.", "title": "Hydrodynamic interactions of oscillating wave surge converters in an array under random sea state", "source": "Ocean. Eng", "year": "2017", "doi": "", "raw": "Tay Z.Y.; Venugopal V., Hydrodynamic interactions of oscillating wave surge converters in an array under random sea state, Ocean. Eng., 145, pp. 382-394, (2017)", "citers": [25, 34, 35, 44], "group": "WEC background"}, {"id": "5b17144e5d", "study": null, "label": "Iturrioz et al. (2014)", "authors": "Iturrioz A.; Guanche R.; Armesto J.A.; Alves M.A.; Vidal C.; Losada I.J.", "title": "Time-domain modeling of a fixed detached oscillating water column towards a floating multi-chamber device", "source": "Ocean Engineering", "year": "2014", "doi": "", "raw": "Iturrioz A.; Guanche R.; Armesto J.A.; Alves M.A.; Vidal C.; Losada I.J., Time-domain modeling of a fixed detached oscillating water column towards a floating multi-chamber device, Ocean Engineering, pp. 7665-7674, (2014)", "citers": [8, 9, 10, 37], "group": "WEC background"}, {"id": "ed28c40587", "study": null, "label": "He et al. (2019)", "authors": "He F.; Zhang H.; Zhao J.; Zheng S.; Iglesias G.", "title": "Hydrodynamic performance of a pile-supported OWC breakwaters: an analytical study", "source": "Appl. Ocean Res", "year": "2019", "doi": "", "raw": "He F.; Zhang H.; Zhao J.; Zheng S.; Iglesias G., Hydrodynamic performance of a pile-supported OWC breakwaters: an analytical study, Appl. Ocean Res., 88, pp. 326-340, (2019)", "citers": [23, 34, 35, 53], "group": "WEC background"}, {"id": "c0085dbfa4", "study": null, "label": "Fan et al. (2016)", "authors": "Fan Y.; Mu A.; Ma T.", "title": "Design and control of a point absorber wave energy converter with an open loop hydraulic transmission", "source": "Energy Convers. Manag", "year": "2016", "doi": "", "raw": "Fan Y.; Mu A.; Ma T., Design and control of a point absorber wave energy converter with an open loop hydraulic transmission, Energy Convers. Manag., 121, pp. 13-21, (2016)", "citers": [24, 25, 34, 35], "group": "WEC background"}, {"id": "9c53561a37", "study": null, "label": "Iturrioz et al. (2015)", "authors": "Iturrioz A.; Guanche R.; Lara J.; Vidal C.; Losada I.", "title": "Validation of OpenFOAM® for Oscillating Water Column three-dimensional modeling", "source": "Ocean Engineering", "year": "2015", "doi": "", "raw": "Iturrioz A.; Guanche R.; Lara J.; Vidal C.; Losada I., Validation of OpenFOAM® for Oscillating Water Column three-dimensional modeling, Ocean Engineering, 107, (2015)", "citers": [9, 10, 42, 68], "group": "WEC background"}, {"id": "54f238fe21", "study": null, "label": "Engsig-Karup et al. (2009)", "authors": "Engsig-Karup A.P.; Bingham H.B.; Lindberg O.", "title": "An efficient flexible-order model for 3D nonlinear water waves", "source": "J Comput Phys", "year": "2009", "doi": "", "raw": "Engsig-Karup A.P.; Bingham H.B.; Lindberg O., An efficient flexible-order model for 3D nonlinear water waves, J Comput Phys, 228, 6, pp. 2100-2118, (2009)", "citers": [12, 18, 41, 42], "group": "WEC background"}, {"id": "47d838d1e9", "study": null, "label": "Zhang and Aggidis (2018)", "authors": "Zhang H.; Aggidis G.", "title": "Nature rules hidden in the biomimetic wave energy converters", "source": "Renew Sustain Energy Rev", "year": "2018", "doi": "", "raw": "Zhang H.; Aggidis G., Nature rules hidden in the biomimetic wave energy converters, Renew Sustain Energy Rev, 97, pp. 28-37, (2018)", "citers": [24, 25, 46, 47], "group": "WEC background"}, {"id": "e6cd2a0e2f", "study": null, "label": "Mustapa et al. (2017)", "authors": "Mustapa M.; Yaakob O.; Ahmed Y.; Rheem C.; Koh K.; Adnan F.", "title": "Wave energy device and breakwater integration: a review", "source": "Renew Sustain Energy Rev", "year": "2017", "doi": "", "raw": "Mustapa M.; Yaakob O.; Ahmed Y.; Rheem C.; Koh K.; Adnan F., Wave energy device and breakwater integration: a review, Renew Sustain Energy Rev, 77, pp. 43-58, (2017)", "citers": [24, 53, 64, 67], "group": "WEC background"}, {"id": "878d69e893", "study": null, "label": "Renzi and Dias (2013)", "authors": "Renzi E.; Dias F.", "title": "Hydrodynamics of the oscillating wave surge converter in the open ocean", "source": "Eur J Mech B/Fluids", "year": "2013", "doi": "", "raw": "Renzi E.; Dias F., Hydrodynamics of the oscillating wave surge converter in the open ocean, Eur J Mech B/Fluids, 41, pp. 1-10, (2013)", "citers": [6, 24, 25, 27], "group": "WEC background"}, {"id": "65e9b56b0f", "study": null, "label": "Folley et al. (2007)", "authors": "Folley M.; Whittaker T.; Henry A.", "title": "The effect of water depth on the performance of a small surging wave energy converter", "source": "Ocean Eng", "year": "2007", "doi": "", "raw": "Folley M.; Whittaker T.; Henry A., The effect of water depth on the performance of a small surging wave energy converter, Ocean Eng, 34, pp. 1265-1274, (2007)", "citers": [6, 24, 43, 71], "group": "WEC background"}, {"id": "441d46b676", "study": null, "label": "Chow et al. (2018b)", "authors": "Chow Y.; Chang Y.; Chen D.; Lin C.; Tzang S.", "title": "Parametric design methodology for maximizing energy capture of a bottom-hinged flap-type WEC medium wave resources", "source": "Renewable Energy", "year": "2018", "doi": "", "raw": "Chow Y.; Chang Y.; Chen D.; Lin C.; Tzang S., Parametric design methodology for maximizing energy capture of a bottom-hinged flap-type WEC medium wave resources, Renewable Energy, 126, pp. 605-616, (2018)", "citers": [24, 25, 46, 47], "group": "WEC background"}, {"id": "3ab818708e", "study": null, "label": "Falnes (2002b)", "authors": "Falnes J.", "title": "Ocean waves and oscillating systems: Linear interactions including wave-energy extraction", "source": "", "year": "2002", "doi": "", "raw": "Falnes J., Ocean waves and oscillating systems: Linear interactions including wave-energy extraction, (2002)", "citers": [9, 30, 45, 50, 62], "group": "WEC background"}, {"id": "e40d6e1bfa", "study": null, "label": "Elhanafi et al. (2017)", "authors": "Elhanafi A.; Macfarlane G.; Fleming A.; Leong Z.", "title": "Scaling and air compressibility effects on a three–dimensional offshore stationary OWC wave energy converter", "source": "Appl. Energy", "year": "2017", "doi": "", "raw": "Elhanafi A.; Macfarlane G.; Fleming A.; Leong Z., Scaling and air compressibility effects on a three–dimensional offshore stationary OWC wave energy converter, Appl. Energy, 189, pp. 1-20, (2017)", "citers": [23, 40, 53, 69], "group": "WEC background"}, {"id": "5d5d0e555a", "study": null, "label": "Goteman et al. (2015)", "authors": "Goteman M.; Engstrom J.; Eriksson M.; Hann M.; Ransley E.; Greaves D.; Leijon M.", "title": "Wave Loads on a Point-Absorbing Wave Energy Device in Extreme Waves, International Ocean and Polar Engineering Conference, All Days", "source": "", "year": "2015", "doi": "", "raw": "Goteman M.; Engstrom J.; Eriksson M.; Hann M.; Ransley E.; Greaves D.; Leijon M., Wave Loads on a Point-Absorbing Wave Energy Device in Extreme Waves, International Ocean and Polar Engineering Conference, All Days, (2015)", "citers": [14, 38, 56, 61], "group": "WEC background"}, {"id": "a3aee8d80e", "study": null, "label": "Katsidoniotaki et al. (2023)", "authors": "Katsidoniotaki E.; Shahroozi Z.; Eskilsson C.; Palm J.; Engstrom J.; Goteman M.", "title": "Validation of a CFD model for wave energy system dynamics in extreme waves", "source": "Ocean Eng", "year": "2023", "doi": "", "raw": "Katsidoniotaki E.; Shahroozi Z.; Eskilsson C.; Palm J.; Engstrom J.; Goteman M., Validation of a CFD model for wave energy system dynamics in extreme waves, Ocean Eng., 268, (2023)", "citers": [56, 61, 69, 72], "group": "WEC background"}, {"id": "ab3a37d5f7", "study": null, "label": "Folley and Whittaker (2009)", "authors": "Folley M.; Whittaker T.J.T.", "title": "Analysis of the nearshore wave energy resource", "source": "Renew Energy", "year": "2009", "doi": "", "raw": "Folley M.; Whittaker T.J.T., Analysis of the nearshore wave energy resource, Renew Energy, 34, 7, pp. 1709-1715, (2009)", "citers": [43, 54, 57, 71], "group": "WEC background"}], "referenceGroups": ["SPH theory", "SPH implementations", "Couplings and coupled libraries", "WEC background"], "studiesWithReferences": 70};
+
+/* ---------------------------------------------------------------
+   Helpers
+   --------------------------------------------------------------- */
+const studies = DATA.studies;
+const byTag = new Map(studies.map(s => [s.tag, s]));
+const state = { view: "validation", selected: null, toggles: {} };   // toggles: one switch per view
+
+const DEVICE_VARS = { OWSC: "--owsc", PA: "--pa", OWC: "--owc", "PA-OWC": "--owc",
+                      WA: "--wa", TMP: "--tmp", TBW: "--tbw", OWEC: "--owec" };
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const deviceColor = device => cssVar(DEVICE_VARS[device] || "--other");
+const studyLabel = s => s.label;
+const datasetLabel = key => DATA.datasetLabels[key] || key.replace(/_/g, " ");
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+function el(tag, attrs = {}, text) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/* ---------------------------------------------------------------
+   Header and footer
+   --------------------------------------------------------------- */
+document.getElementById("site-title").textContent = DATA.site.title;
+if (DATA.noFigures) {                                  // preview: no Figures tab
+  document.querySelector('nav button[data-view="figures"]').remove();
+  document.querySelectorAll("nav button .num").forEach((n, i) => { n.textContent = String(i + 1).padStart(2, "0"); });
+}
+if (DATA.figuresOnly) {
+  document.querySelector(".kicker").textContent = DATA.supplement
+    ? "Supplementary material S1 to the scoping review"
+    : "Supplementary material S1 to the scoping review, current version";
+  document.querySelector("nav").hidden = true;
+  document.getElementById("site-lead").textContent =
+    "Interactive versions of the figures of the review.";
+}
+if (!DATA.figuresOnly) document.getElementById("site-lead").textContent = DATA.site.lead;
+if (DATA.supplement && !DATA.figuresOnly)              // S1: the whole companion, archived with the article
+  document.querySelector(".kicker").textContent = "Supplementary material S1 to the scoping review";
+{
+  const footer = document.getElementById("footer");
+  if (DATA.site.cite) {
+    const p = el("p", {}, `How to cite: ${DATA.site.cite} `);
+    if (DATA.site.doi) p.appendChild(el("a", { href: `https://doi.org/${DATA.site.doi}` }, `doi:${DATA.site.doi}`));
+    footer.appendChild(p);
+  }
+  if (DATA.site.repository) {
+    const p = el("p", {}, "Data and code: ");
+    p.appendChild(el("a", { href: DATA.site.repository }, DATA.site.repository));
+    footer.appendChild(p);
+  }
+  if (DATA.supplement) {
+    const p = el("p", {}, "Archived copy, as published with the article.");
+    if (DATA.site.repository) {
+      const live = DATA.site.repository.replace(/\/?$/, "/figures.html");
+      p.appendChild(document.createTextNode(" Current version: "));
+      p.appendChild(el("a", { href: live }, live));
+    }
+    footer.appendChild(p);
+  } else if (DATA.figuresOnly) {
+    const p = el("p", {}, "Current version of Supplementary Material S1; the copy published with the article is archived with it. ");
+    p.appendChild(el("a", { href: "index.html" }, "Maps of the included studies"));
+    footer.appendChild(p);
+  }
+  footer.appendChild(el("p", {}, `Last updated ${DATA.built}.` + (DATA.references.length ? " Reference data from Scopus." : "")));
+}
+
+/* ---------------------------------------------------------------
+   The four maps: hubs (datasets, solvers, references) linked to studies
+   --------------------------------------------------------------- */
+function countHubs(pairs) {
+  const counts = new Map();
+  pairs.forEach(([, key]) => counts.set(key, (counts.get(key) || 0) + 1));
+  return counts;
+}
+
+const SOURCE_CHARTING = "Charting of the included studies by the authors of the review.";
+const SOURCE_SCOPUS = "Reference lists from Scopus (Elsevier); charting by the authors of the review.";
+
+const VIEWS = {
+  validation: {
+    title: "Experimental datasets used for validation",
+    source: SOURCE_CHARTING,
+    drift: true,
+    singlesText: "Show datasets used by one study only",
+    build() {
+      const pairs = studies.flatMap(s => s.datasets.map(k => [s.tag, k]));
+      const counts = countHubs(pairs);
+      const hubs = [...counts].map(([key, n]) => ({ key, label: datasetLabel(key), count: n, kind: "dataset" }));
+      const linked = new Set(pairs.map(p => p[0])).size;
+      const own = studies.filter(s => !s.datasets.length && s.own).length;
+      const note = `${linked} studies validated against ${counts.size} external datasets (open circles). ` +
+        `${own} use their own experiments and ${studies.length - linked - own} report no reference data.`;
+      return { hubs, pairs, note, hubName: "Dataset" };
+    },
+  },
+  models: {
+    title: "Numerical models used in the studies",
+    source: SOURCE_CHARTING,
+    drift: true,
+    build() {
+      const pairs = studies.filter(s => s.solver).map(s => [s.tag, s.solver]);
+      const counts = countHubs(pairs);
+      const hubs = [...counts].map(([key, n]) => ({ key, label: key, count: n, kind: "solver" }));
+      const note = `The solver used by each of the ${pairs.length} studies (open circles).`;
+      return { hubs, pairs, note, hubName: "Solver", allLabels: true };
+    },
+  },
+  references: {
+    title: "SPH and WEC literature map",
+    source: SOURCE_SCOPUS,
+    singlesText: "Show all references",
+    build() {
+      const refs = DATA.references || [];
+      const pairs = refs.flatMap(r => r.citers.map(t => [t, r.id]));
+      const note = refs.length
+        ? "The references most often cited by the included studies, grouped by type. Hover a name to see who cites it, or a study to see what it builds on; click to keep the selection."
+        : "";
+      return { pairs, note, empty: !refs.length };
+    },
+  },
+  figures: {
+    title: "Figures of the review",
+    source: SOURCE_CHARTING,
+    build() { return { note: "" }; },
+  },
+  citations: {
+    title: "Inheritance and legacy",
+    source: SOURCE_SCOPUS,
+    build() {
+      return { note: DATA.citations.length
+        ? `Each link joins a study to an earlier included study it cites. Circles are sized by how often a study is cited by the others.`
+        : "", empty: !DATA.citations.length };
+    },
+  },
+};
+
+/* ---------------------------------------------------------------
+   Rendering: shared setup (zoom, drag, hover, fit to frame)
+   --------------------------------------------------------------- */
+let simulation = null;
+
+function frame() {
+  const chart = document.getElementById("chart");
+  chart.replaceChildren();
+  const width = Math.max(chart.clientWidth, 320);
+  const height = Math.round(Math.min(680, Math.max(460, width * 0.62)));
+  const svg = d3.select(chart).append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const layer = svg.append("g");
+  const zoom = d3.zoom().scaleExtent([0.4, 8]).on("zoom", e => layer.attr("transform", e.transform));
+  svg.call(zoom).on("dblclick.zoom", null);
+  return { svg, layer, zoom, width, height };
+}
+
+function fitToFrame(f, nodes, margin = 30, maxScale = 1.25) {
+  const x0 = d3.min(nodes, d => d.x - d.r), x1 = d3.max(nodes, d => d.x + d.r);
+  const y0 = d3.min(nodes, d => d.y - d.r - 18), y1 = d3.max(nodes, d => d.y + d.r);
+  const scale = Math.min(maxScale, (f.width - 2 * margin) / (x1 - x0 || 1), (f.height - 2 * margin) / (y1 - y0 || 1));
+  const t = d3.zoomIdentity.translate(f.width / 2 - scale * (x0 + x1) / 2, f.height / 2 - scale * (y0 + y1) / 2).scale(scale);
+  f.svg.call(f.zoom.transform, t);
+}
+
+let applyFocus = null;     // highlights the selected item in the current view (set by each view)
+const locked = () => !!state.selected;    // a click locks the highlight; hovering is then ignored
+
+// A click on empty space clears the selection
+function clearOnBackground(svg) {
+  svg.on("click", e => { if (!e.target.closest("circle, .hit, .mark")) select(null); });
+}
+
+function interactions(nodeSel, edgeSel, labelSel, nodes, edges, sim, fixX) {
+  // Drag: the rest of the network follows
+  nodeSel.call(d3.drag()
+    .on("start", (e, d) => { if (!e.active) sim.alphaTarget(0.2).restart(); d.fx = d.x; d.fy = d.y; })
+    .on("drag", (e, d) => { d.fx = fixX ? d.x : e.x; d.fy = e.y; })
+    .on("end", (e, d) => { if (!e.active) sim.alphaTarget(sim.baseTarget || 0); d.fx = null; d.fy = null; }));
+
+  // Hover: highlight the node and its direct connections
+  const near = new Map(nodes.map(d => [d.key, new Set([d.key])]));
+  edges.forEach(l => { near.get(l.source.key).add(l.target.key); near.get(l.target.key).add(l.source.key); });
+  const focusKey = key => {
+    if (key === null || !near.has(key)) {
+      nodeSel.style("opacity", null); labelSel.style("opacity", null);
+      edgeSel.style("stroke-opacity", null).style("stroke", null);
+      return;
+    }
+    const set = near.get(key);
+    nodeSel.style("opacity", n => set.has(n.key) ? 1 : 0.12);
+    labelSel.style("opacity", n => set.has(n.key) ? 1 : 0.12);
+    edgeSel.style("stroke-opacity", l => l.source.key === key || l.target.key === key ? 0.95 : 0.05)
+           .style("stroke", l => l.source.key === key || l.target.key === key ? cssVar("--ink") : null);
+  };
+  nodeSel.on("mouseenter", (e, d) => { if (!locked()) focusKey(d.key); })
+         .on("mouseleave", () => { if (!locked()) focusKey(null); });
+  return focusKey;
+}
+
+/* ---------------------------------------------------------------
+   Hub maps: validation datasets, numerical models, most cited references
+   --------------------------------------------------------------- */
+function renderHubMap(spec, view) {
+  const minCount = view.singlesText && !state.toggles[state.view] ? 2 : 1;
+  const hubs = spec.hubs.filter(h => h.count >= minCount).map(h => ({ ...h, key: "h:" + h.key, id: h.key,
+               r: 6 + 3.2 * Math.sqrt(h.count) }));
+  const hubKeys = new Set(hubs.map(h => h.id));
+  const pairs = spec.pairs.filter(([, k]) => hubKeys.has(k));
+  const tags = [...new Set(pairs.map(p => p[0]))];
+  const studyNodes = tags.map(t => ({ key: "s:" + t, tag: t, kind: "study", r: 5, device: byTag.get(t).device }));
+  const nodes = [...hubs, ...studyNodes];
+  const edges = pairs.map(([t, k]) => ({ source: "s:" + t, target: "h:" + k }));
+
+  const f = frame();
+  const edgeSel = f.layer.append("g").selectAll("line").data(edges).join("line").attr("class", "edge");
+  const nodeSel = f.layer.append("g").selectAll("circle").data(nodes).join("circle")
+    .attr("r", d => d.r)
+    .attr("class", d => d.kind === "study" ? "study" : "hub")
+    .attr("fill", d => d.kind === "study" ? deviceColor(d.device) : null)
+    .on("click", (e, d) => select(d.kind === "study" ? { type: "study", tag: d.tag } : { type: "hub", hub: d, spec }));
+  nodeSel.append("title").text(d => d.kind === "study" ? studyLabel(byTag.get(d.tag))
+                                    : `${d.label}: ${plural(d.count, "study", "studies")}`);
+  const labelSel = f.layer.append("g").selectAll("text").data([]).join("text");   // filled after the layout
+
+  simulation = d3.forceSimulation(nodes)
+    .force("link", d3.forceLink(edges).id(d => d.key).distance(l => 14 + l.target.r).strength(0.9))
+    .force("charge", d3.forceManyBody().strength(d => d.kind === "study" ? -22 : -180 - 12 * d.count))
+    .force("collide", d3.forceCollide(d => d.r + (d.kind === "study" ? 1.5 : 6)))
+    .force("x", d3.forceX(f.width / 2).strength(0.045))
+    .force("y", d3.forceY(f.height / 2).strength(0.06))
+    .stop();
+  for (let i = 0; i < 400; i++) simulation.tick();
+
+  const draw = () => {
+    edgeSel.attr("x1", d => d.source.x).attr("y1", d => d.source.y).attr("x2", d => d.target.x).attr("y2", d => d.target.y);
+    nodeSel.attr("cx", d => d.x).attr("cy", d => d.y);
+    labelSel.attr("x", d => d.x).attr("y", d => d.y - d.r - 6);
+  };
+  // Labels of the hubs, largest first, skipping any that would overlap one already placed
+  const boxes = [], labelled = [];
+  for (const h of [...hubs].sort((a, b) => b.count - a.count)) {
+    if (!(spec.allLabels || h.count >= 3 || hubs.length <= 25)) continue;
+    const w = h.label.length * 6.8, box = [h.x - w / 2, h.y - h.r - 20, h.x + w / 2, h.y - h.r - 4];
+    if (boxes.some(b => box[0] < b[2] && b[0] < box[2] && box[1] < b[3] && b[1] < box[3])) continue;
+    boxes.push(box); labelled.push(h);
+  }
+  const labelSel2 = f.layer.append("g").selectAll("text").data(labelled).join("text")
+    .attr("class", "label").attr("text-anchor", "middle").text(d => d.label);
+  const drawAll = () => { draw(); labelSel2.attr("x", d => d.x).attr("y", d => d.y - d.r - 6); };
+  drawAll();
+  fitToFrame(f, nodes);
+  simulation.on("tick", drawAll);
+
+  // Very slow drift around the resting layout (off for users who ask for reduced motion)
+  if (view.drift && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    nodes.forEach((n, i) => { n.phase = (i * 2.39996) % (2 * Math.PI); });
+    simulation.force("drift", () => {
+      const t = performance.now() / 1000;
+      for (const n of nodes) {
+        if (n.fx != null) continue;                       // not while being dragged
+        n.vx += 0.012 * Math.sin(0.22 * t + n.phase);
+        n.vy += 0.012 * Math.cos(0.17 * t + 1.3 * n.phase);
+      }
+    });
+    simulation.baseTarget = 0.03;
+    simulation.velocityDecay(0.55).alphaDecay(0).alpha(0.03).alphaTarget(0.03).restart();
+  }
+  const focusKey = interactions(nodeSel, edgeSel, labelSel2, nodes, edges, simulation, false);
+  clearOnBackground(f.svg);
+  applyFocus = () => {
+    markSelection(nodeSel);
+    const s = state.selected;
+    focusKey(!s ? null : s.type === "study" ? "s:" + s.tag : s.hub.key);
+  };
+  applyFocus();
+  legend(studyNodes.map(n => n.device), spec.hubName);
+}
+
+/* ---------------------------------------------------------------
+   SPH references: grouped references (left) linked to the citing studies (right)
+   --------------------------------------------------------------- */
+const REF_GROUPS = (DATA.referenceGroups || []).map(g => [g, g]);      // as arranged in reference_groups.md
+const groupName = g => g;
+const groupColor = g => cssVar(`--g${(REF_GROUPS.findIndex(x => x[0] === g) % 6) + 1}`);
+const refLabel = r => r.label || r.id;
+const refHub = r => ({ key: "h:" + r.id, id: r.id, kind: "reference", label: refLabel(r), count: r.citers.length, ref: r });
+state.groups = new Set(REF_GROUPS.map(g => g[0]));
+
+function renderChips() {
+  const box = document.getElementById("chips");
+  box.replaceChildren();
+  for (const [g, name] of REF_GROUPS) {
+    const n = DATA.references.filter(r => r.group === g).length;
+    if (!n) continue;
+    const b = el("button", { class: "chip", "aria-pressed": String(state.groups.has(g)) });
+    const sw = el("span", { class: "swatch" }); sw.style.background = groupColor(g);
+    b.appendChild(sw); b.appendChild(document.createTextNode(`${name} (${n})`));
+    b.addEventListener("click", () => {
+      if (state.groups.has(g)) state.groups.delete(g); else state.groups.add(g);
+      render();
+    });
+    box.appendChild(b);
+  }
+}
+
+function renderExplorer(spec) {
+  renderChips();
+  const perGroup = state.toggles.references ? Infinity : 12;            // top 12 per group unless "Show all"
+  const refs = REF_GROUPS.flatMap(([g]) => DATA.references.filter(r => r.group === g && state.groups.has(g))
+                                                         .sort((a, b) => b.citers.length - a.citers.length)
+                                                         .slice(0, perGroup));
+  const chart = document.getElementById("chart");
+  chart.replaceChildren();
+  if (!refs.length) { chart.appendChild(el("p", { class: "empty-state" }, "Select at least one group above.")); legend([]); return; }
+
+  const width = Math.max(chart.clientWidth, 320);
+  const narrow = width < 640;
+  const row = 18, head = 28, m = { top: 12, bottom: 16 };
+  // left column: group headings and references
+  const left = []; let y = m.top;
+  REF_GROUPS.forEach(([g]) => {
+    const items = refs.filter(r => r.group === g);
+    if (!items.length) return;
+    y += 8; left.push({ type: "head", g, y: y + 10 }); y += head - 8;
+    items.forEach(r => { left.push({ type: "ref", r, y: y + row / 2 }); y += row; });
+  });
+  const leftHeight = y - m.top;
+  // right column: citing studies in chronological order, spread over the same height
+  const tags = [...new Set(refs.flatMap(r => r.citers))].map(t => byTag.get(t))
+    .sort((a, b) => a.year - b.year || a.tag - b.tag);
+  const rowR = Math.max(14, Math.min(22, leftHeight / tags.length));
+  const height = m.top + m.bottom + Math.max(leftHeight, rowR * tags.length);
+  const yStudy = new Map(tags.map((s, i) => [s.tag, m.top + rowR * (i + 0.5) + (leftHeight > rowR * tags.length ? (leftHeight - rowR * tags.length) / 2 : 0)]));
+
+  const xRefText = width * (narrow ? 0.44 : 0.34);
+  const xBar = xRefText + 8, barMax = narrow ? 24 : 44;
+  const xFrom = xBar + barMax + 6;
+  const xStudyText = width * (narrow ? 0.58 : 0.68);
+  const xTo = xStudyText - 14;
+  const maxCount = d3.max(refs, r => r.citers.length);
+
+  const svg = d3.select(chart).append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const links = refs.flatMap(r => r.citers.map(t => ({ r, tag: t })));
+  const yRef = new Map(left.filter(d => d.type === "ref").map(d => [d.r.id, d.y]));
+  const curve = d => {
+    const y0 = yRef.get(d.r.id), y1 = yStudy.get(d.tag), mid = (xFrom + xTo) / 2;
+    return `M${xFrom},${y0}C${mid},${y0} ${mid},${y1} ${xTo},${y1}`;
+  };
+  const linkSel = svg.append("g").selectAll("path").data(links).join("path").attr("class", "xlink")
+    .attr("d", curve).attr("stroke", d => groupColor(d.r.group)).attr("stroke-opacity", 0.07);
+
+  svg.append("g").selectAll("text").data(left.filter(d => d.type === "head")).join("text")
+    .attr("class", "group-head").attr("x", xRefText).attr("y", d => d.y).attr("text-anchor", "end")
+    .style("fill", d => groupColor(d.g)).text(d => groupName(d.g));
+  const refRows = svg.append("g").selectAll("g").data(left.filter(d => d.type === "ref")).join("g")
+    .attr("transform", d => `translate(0,${d.y})`).style("cursor", "pointer")
+    .attr("class", "hit")
+    .on("mouseenter", (e, d) => { if (!locked()) focus({ kind: "ref", id: d.r.id }); })
+    .on("mouseleave", () => { if (!locked()) focus(null); })
+    .on("click", (e, d) => select({ type: "hub", hub: refHub(d.r), spec }));
+  refRows.append("rect").attr("x", 0).attr("y", -row / 2).attr("width", xFrom).attr("height", row).attr("fill", "transparent");
+  refRows.append("text").attr("class", "row-label").attr("x", xRefText).attr("dy", "0.35em").attr("text-anchor", "end")
+    .text(d => refLabel(d.r)).append("title").text(d => d.r.title);
+  refRows.append("rect").attr("x", xBar).attr("y", -3.5).attr("height", 7).attr("rx", 2)
+    .attr("width", d => Math.max(2, barMax * d.r.citers.length / maxCount)).attr("fill", d => groupColor(d.r.group));
+  refRows.append("title").text(d => `${d.r.title} (cited by ${plural(d.r.citers.length, "study", "studies")})`);
+
+  const studyRows = svg.append("g").selectAll("g").data(tags).join("g")
+    .attr("transform", s => `translate(0,${yStudy.get(s.tag)})`).style("cursor", "pointer")
+    .attr("class", "hit")
+    .on("mouseenter", (e, s) => { if (!locked()) focus({ kind: "study", tag: s.tag }); })
+    .on("mouseleave", () => { if (!locked()) focus(null); })
+    .on("click", (e, s) => select({ type: "study", tag: s.tag }));
+  studyRows.append("rect").attr("x", xTo).attr("y", -rowR / 2).attr("width", width - xTo).attr("height", rowR).attr("fill", "transparent");
+  studyRows.append("circle").attr("cx", xStudyText - 7).attr("r", 4).attr("fill", s => deviceColor(s.device));
+  studyRows.append("text").attr("class", "row-label").attr("x", xStudyText).attr("dy", "0.35em")
+    .text(s => s.label);
+
+  function pinned() {
+    const s = state.selected;
+    if (!s) return null;
+    if (s.type === "study") return { kind: "study", tag: s.tag };
+    if (s.hub.kind === "reference") return { kind: "ref", id: s.hub.id };
+    return null;
+  }
+  function focus(f) {
+    if (!f) {
+      linkSel.attr("stroke-opacity", 0.07).attr("stroke-width", 1.2);
+      refRows.style("opacity", null); studyRows.style("opacity", null).style("font-weight", null);
+      return;
+    }
+    const on = f.kind === "ref" ? l => l.r.id === f.id : l => l.tag === f.tag;
+    const refsOn = new Set(links.filter(on).map(l => l.r.id));
+    const studiesOn = new Set(links.filter(on).map(l => l.tag));
+    linkSel.attr("stroke-opacity", l => on(l) ? 0.85 : 0.02).attr("stroke-width", l => on(l) ? 1.6 : 1.2);
+    linkSel.filter(on).raise();
+    refRows.style("opacity", d => refsOn.has(d.r.id) ? 1 : 0.25);
+    studyRows.style("opacity", s => studiesOn.has(s.tag) ? 1 : 0.25)
+             .style("font-weight", s => f.kind === "study" && s.tag === f.tag ? 700 : null);
+  }
+  clearOnBackground(svg);
+  applyFocus = () => focus(pinned());
+  applyFocus();
+  legend(tags.map(s => s.device));
+  document.getElementById("legend").lastChild.textContent = "Bars show how many included studies cite each reference.";
+}
+
+/* ---------------------------------------------------------------
+   Citations between studies: a timeline (x = publication year)
+   --------------------------------------------------------------- */
+function renderTimeline() {
+  const cited = new Map(), citing = new Map();
+  DATA.citations.forEach(([a, b]) => { cited.set(b, (cited.get(b) || 0) + 1); citing.set(a, (citing.get(a) || 0) + 1); });
+  const tags = [...new Set(DATA.citations.flat())];
+  const lane = d => d === "PA-OWC" ? "OWC" : d;
+  const nodes = tags.map(t => ({ key: t, tag: t, kind: "study", device: byTag.get(t).device, lane: lane(byTag.get(t).device),
+                                 year: +byTag.get(t).year, cited: cited.get(t) || 0,
+                                 r: 4.5 + 2 * Math.sqrt(cited.get(t) || 0) }));
+  const nodeOf = new Map(nodes.map(n => [n.key, n]));
+  const edges = DATA.citations.map(([a, b]) => ({ source: nodeOf.get(a), target: nodeOf.get(b) }));
+
+  const chart = document.getElementById("chart");
+  chart.replaceChildren();
+  const width = Math.max(chart.clientWidth, 320);
+  const lanes = [...d3.rollup(nodes, v => v.length, d => d.lane)].sort((a, b) => b[1] - a[1]).map(d => d[0]);
+  const laneHeight = d => Math.max(70, 26 * Math.sqrt(nodes.filter(n => n.lane === d).length));
+  const m = { left: 64, right: 24, top: 18, bottom: 40 };
+  const height = m.top + m.bottom + d3.sum(lanes, laneHeight);
+  const svg = d3.select(chart).append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  const years = d3.extent(nodes, d => d.year);
+  const x = d3.scaleLinear().domain([years[0] - 0.5, years[1] + 0.5]).range([m.left, width - m.right]);
+  const laneTop = new Map(); let acc = m.top;
+  lanes.forEach(l => { laneTop.set(l, acc); acc += laneHeight(l); });
+  const laneMid = l => laneTop.get(l) + laneHeight(l) / 2;
+
+  svg.append("g").attr("class", "year-grid").selectAll("line").data(d3.range(years[0], years[1] + 1)).join("line")
+    .attr("x1", d => x(d)).attr("x2", d => x(d)).attr("y1", m.top).attr("y2", height - m.bottom);
+  svg.append("g").selectAll("line").data(lanes.slice(1)).join("line")
+    .attr("x1", 0).attr("x2", width).attr("y1", l => laneTop.get(l)).attr("y2", l => laneTop.get(l))
+    .attr("stroke", cssVar("--rule"));
+  svg.append("g").selectAll("text").data(lanes).join("text")
+    .attr("x", 12).attr("y", l => laneMid(l)).attr("dy", "0.35em").attr("font-size", 13).attr("font-weight", 600)
+    .style("fill", l => deviceColor(l)).text(l => l);
+  svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - m.bottom})`)
+    .call(d3.axisBottom(x).ticks(width < 600 ? 6 : years[1] - years[0] + 1).tickFormat(d3.format("d")));
+
+  nodes.forEach(d => { d.x = x(d.year); d.y = laneMid(d.lane) + ((d.tag * 37) % 40 - 20); });   // stable start
+  simulation = d3.forceSimulation(nodes)
+    .force("x", d3.forceX(d => x(d.year)).strength(0.9))
+    .force("y", d3.forceY(d => laneMid(d.lane)).strength(0.35))
+    .force("collide", d3.forceCollide(d => d.r + 2.5))
+    .stop();
+  for (let i = 0; i < 300; i++) simulation.tick();
+  nodes.forEach(d => {
+    const top = laneTop.get(d.lane) + d.r + 4, bottom = laneTop.get(d.lane) + laneHeight(d.lane) - d.r - 4;
+    d.y = Math.max(top, Math.min(bottom, d.y));
+  });
+
+  const layer = svg.append("g");
+  const arc = d => {                       // smooth S-curve, as in the references view
+    const mid = (d.source.x + d.target.x) / 2;
+    return `M${d.source.x},${d.source.y}C${mid},${d.source.y} ${mid},${d.target.y} ${d.target.x},${d.target.y}`;
+  };
+  const edgeSel = layer.append("g").selectAll("path").data(edges).join("path").attr("class", "edge")
+    .style("stroke-opacity", 0.22);
+  const nodeSel = layer.append("g").selectAll("circle").data(nodes).join("circle")
+    .attr("r", d => d.r).attr("class", "study").attr("fill", d => deviceColor(d.device))
+    .on("click", (e, d) => select({ type: "study", tag: d.tag }));
+  nodeSel.append("title").text(d => `${studyLabel(byTag.get(d.tag))}: cited by ${d.cited}, cites ${citing.get(d.tag) || 0} included studies`);
+  // labels for the most cited studies, skipping any that would overlap one already placed
+  const top = [], boxes = [];
+  for (const d of [...nodes].sort((a, b) => b.cited - a.cited).filter(d => d.cited >= 2).slice(0, 12)) {
+    const w = byTag.get(d.tag).label.length * 6.6, box = [d.x - w / 2, d.y - d.r - 19, d.x + w / 2, d.y - d.r - 3];
+    if (boxes.some(b => box[0] < b[2] && b[0] < box[2] && box[1] < b[3] && b[1] < box[3])) continue;
+    boxes.push(box); top.push(d);
+  }
+  const labelSel = layer.append("g").selectAll("text").data(top).join("text")
+    .attr("class", "label").attr("text-anchor", "middle").text(d => byTag.get(d.tag).label);
+
+  const draw = () => {
+    edgeSel.attr("d", arc);
+    nodeSel.attr("cx", d => d.x).attr("cy", d => d.y);
+    labelSel.attr("x", d => d.x).attr("y", d => d.y - d.r - 5);
+  };
+  draw();
+  simulation.on("tick", draw);
+  interactions(nodeSel, edgeSel, labelSel, nodes, edges, simulation, true);
+
+  // Highlight one study: solid curves to what it cites, dashed curves from what cites it,
+  // both in the colour of the highlighted study
+  function focus(tag) {
+    if (tag === null) {
+      nodeSel.style("opacity", null); labelSel.style("opacity", null);
+      edgeSel.style("stroke", null).style("stroke-opacity", 0.22).style("stroke-dasharray", null).style("stroke-width", null);
+      return;
+    }
+    const colour = deviceColor(byTag.get(tag).device);
+    const mine = l => l.source.tag === tag || l.target.tag === tag;
+    const cites = new Set(edges.filter(l => l.source.tag === tag).map(l => l.target.tag));
+    const citedBy = new Set(edges.filter(l => l.target.tag === tag).map(l => l.source.tag));
+    const near = n => n.tag === tag || cites.has(n.tag) || citedBy.has(n.tag);
+    nodeSel.style("opacity", n => near(n) ? 1 : 0.12);
+    labelSel.style("opacity", n => near(n) ? 1 : 0.12);
+    edgeSel
+      .style("stroke", l => mine(l) ? colour : null)
+      .style("stroke-opacity", l => mine(l) ? 0.9 : 0.04)
+      .style("stroke-width", l => mine(l) ? 1.6 : null)
+      .style("stroke-dasharray", l => l.target.tag === tag ? "5 4" : null);
+    edgeSel.filter(mine).raise();
+  }
+  const pinnedTag = () => state.selected && state.selected.type === "study" && nodes.some(n => n.tag === state.selected.tag)
+    ? state.selected.tag : null;
+  nodeSel.on("mouseenter", (e, d) => { if (!locked()) focus(d.tag); })
+         .on("mouseleave", () => { if (!locked()) focus(null); });
+  clearOnBackground(svg);
+  applyFocus = () => { markSelection(nodeSel); focus(pinnedTag()); };
+  applyFocus();
+
+  const box = document.getElementById("legend");
+  box.replaceChildren();
+  const item = (cls, text) => { const sp = el("span"); sp.appendChild(el("span", { class: cls })); sp.appendChild(document.createTextNode(text)); box.appendChild(sp); };
+  item("line-sample", "Cites (earlier studies)");
+  item("line-sample dashed", "Cited by (later studies)");
+  box.appendChild(el("span", {}, "Hover a circle, or click to keep it; click empty space to clear."));
+}
+
+/* ---------------------------------------------------------------
+   Selection card
+   --------------------------------------------------------------- */
+function select(item) {
+  const same = state.selected && item && state.selected.type === item.type &&
+               (item.type === "study" ? state.selected.tag === item.tag : state.selected.hub.key === item.hub.key);
+  state.selected = same ? null : item;
+  renderCard();
+  if (applyFocus) applyFocus();
+}
+
+function markSelection(sel) {
+  const s = state.selected;
+  sel.classed("selected", d => !!s && (s.type === "study" ? d.tag === s.tag && d.kind === "study"
+                                                          : d.key === s.hub.key));
+}
+
+function renderCard() {
+  const card = document.getElementById("card");
+  card.replaceChildren();
+  const s = state.selected;
+  if (!s) { card.appendChild(el("p", { class: "hint" }, "Select a circle or a name to see the details here.")); return; }
+  const close = el("button", { class: "close", "aria-label": "Close" }, "×");
+  close.addEventListener("click", () => select(null));
+  card.appendChild(close);
+
+  const studyList = tags => {
+    const ul = el("ul");
+    tags.map(t => byTag.get(t)).sort((a, b) => a.year - b.year).forEach(st => {
+      const li = el("li"); const b = el("button", {}, studyLabel(st));
+      b.addEventListener("click", () => select({ type: "study", tag: st.tag }));
+      li.appendChild(b); ul.appendChild(li);
+    });
+    return ul;
+  };
+
+  if (s.type === "study") {
+    const st = byTag.get(s.tag);
+    card.appendChild(el("h2", {}, studyLabel(st)));
+    card.appendChild(el("p", {}, st.title));
+    const meta = el("p", { class: "meta" }, `${st.authors.replace(/\.$/, "")}. ${st.journal}. `);
+    if (st.doi) meta.appendChild(el("a", { href: `https://doi.org/${st.doi}`, target: "_blank", rel: "noopener" }, "Open the paper"));
+    card.appendChild(meta);
+    const dl = el("dl");
+    const row = (k, v) => { dl.appendChild(el("dt", {}, k)); dl.appendChild(el("dd", {}, v)); };
+    row("Device", st.device);
+    if (!DATA.figuresOnly) row("Solver", st.solver || "Not reported");
+    if (!DATA.figuresOnly)
+      row("Validated against", st.datasets.map(datasetLabel).join(", ") || (st.own ? "Own experiments" : "No reference data"));
+    card.appendChild(dl);
+
+    // Citations view: the included studies it cites and that cite it
+    if (state.view === "citations") {
+      const cites = DATA.citations.filter(c => c[0] === st.tag).map(c => c[1]);
+      const citedBy = DATA.citations.filter(c => c[1] === st.tag).map(c => c[0]);
+      card.appendChild(el("h3", {}, `Cites (${cites.length})`));
+      card.appendChild(cites.length ? studyList(cites) : el("p", { class: "meta" }, "No included study."));
+      card.appendChild(el("h3", {}, `Cited by (${citedBy.length})`));
+      card.appendChild(citedBy.length ? studyList(citedBy) : el("p", { class: "meta" }, "No included study."));
+    }
+
+    // References view: the SPH references it builds on
+    const cited = state.view === "references" ? (DATA.references || []).filter(r => r.citers.includes(st.tag)) : [];
+    if (cited.length) {
+      card.appendChild(el("h3", {}, "Builds on (most cited references)"));
+      REF_GROUPS.forEach(([g, name]) => {
+        const items = cited.filter(r => r.group === g);
+        if (!items.length) return;
+        const p = el("p", { class: "meta" }, name);
+        card.appendChild(p);
+        const ul = el("ul");
+        items.forEach(r => {
+          const li = el("li"); const b = el("button", {}, refLabel(r));
+          b.addEventListener("click", () => select({ type: "hub", hub: refHub(r), spec: VIEWS.references.build() }));
+          li.appendChild(b); ul.appendChild(li);
+        });
+        card.appendChild(ul);
+      });
+    }
+  } else {
+    const h = s.hub;
+    const tags = s.spec.pairs.filter(p => p[1] === h.id).map(p => p[0]);
+    card.appendChild(el("h2", {}, h.label));
+    if (h.kind === "reference") {
+      const r = h.ref;
+      card.appendChild(el("p", { class: "meta" }, groupName(r.group)));
+      card.appendChild(el("p", {}, r.title));
+      card.appendChild(el("p", { class: "meta" }, [r.authors.replace(/\.$/, ""), [r.source, r.year].filter(Boolean).join(", ")].filter(Boolean).join(". ") + "."));
+      const link = el("p", { class: "meta" });
+      link.appendChild(r.doi
+        ? el("a", { href: `https://doi.org/${r.doi}`, target: "_blank", rel: "noopener" }, "Open the paper")
+        : el("a", { href: `https://scholar.google.com/scholar?q=${encodeURIComponent(r.title + " " + r.year)}`, target: "_blank", rel: "noopener" }, "Find the paper"));
+      card.appendChild(link);
+      const raw = el("details");
+      raw.appendChild(el("summary", { class: "meta" }, "As listed in Scopus"));
+      raw.appendChild(el("p", { class: "meta" }, r.raw));
+      card.appendChild(raw);
+      if (r.study) {
+        const p = el("p", { class: "meta" }, "Also included in the review: ");
+        const b = el("button", { class: "inline" }, studyLabel(byTag.get(r.study)));
+        b.addEventListener("click", () => select({ type: "study", tag: r.study }));
+        p.appendChild(b); card.appendChild(p);
+      }
+    }
+    const verb = h.kind === "dataset" ? "Validated against by" : h.kind === "solver" ? "Used by" : "Cited by";
+    card.appendChild(el("p", { class: "meta" }, `${verb} ${plural(tags.length, "study", "studies")}:`));
+    card.appendChild(studyList(tags));
+  }
+}
+
+/* ---------------------------------------------------------------
+   Legend
+   --------------------------------------------------------------- */
+function legend(devices, hubName) {
+  const box = document.getElementById("legend");
+  box.replaceChildren();
+  [...new Set(devices.map(d => d === "PA-OWC" ? "OWC" : d))].sort().forEach(d => {
+    const item = el("span"); const sw = el("span", { class: "swatch" }); sw.style.background = deviceColor(d);
+    item.appendChild(sw); item.appendChild(document.createTextNode(d)); box.appendChild(item);
+  });
+  if (hubName) {
+    const item = el("span"); item.appendChild(el("span", { class: "swatch hub-swatch" }));
+    item.appendChild(document.createTextNode(hubName)); box.appendChild(item);
+  }
+  box.appendChild(el("span", {}, "Drag to move, scroll to zoom, hover to see connections."));
+}
+
+/* ---------------------------------------------------------------
+   Views and navigation (#validation, #models, #references, #citations)
+   --------------------------------------------------------------- */
+/* ---------------------------------------------------------------
+   Figures of the review: the same plots as in the paper. Hovering a point
+   names the study; clicking opens its card. No values are displayed.
+   --------------------------------------------------------------- */
+const FIGURES = [
+  { id: "c0", n: 5, title: "Speed of sound against the wave conditions", note: "Each circle is a study, placed by the dimensionless water depth and wave height of its wave conditions, and coloured by the ratio between the reference speed of sound and the maximum orbital velocity." },
+  { id: "h", n: 6, title: "Smoothing length", y: "{h}/Δ{p} [–]", note: "Smoothing length over the initial particle spacing, by kernel and dimensionality. Grey bars mark studies that do not report it." },
+  { id: "visc", n: 7, title: "Viscosity treatment", y: "{α}_{w} [–] / {μ} [Pa·s]", note: "Artificial viscosity coefficient (squares) and dynamic viscosity of models with momentum viscous diffusion (circles). Bars give the plausible range when the value is not disclosed; dashed lines mark inviscid models; grey bars mark studies with no information." },
+  { id: "H", n: 8, title: "Wave height over particle size", y: "{H}_{i}/Δ{p} [–]", note: "Incident wave height over the particle size; a line joins the two ends of a range. Grey bars mark studies without the values needed." },
+  { id: "DL", n: 9, title: "Distance between wavemaker and device", y: "{D}_{wavemk}/{λ}_{i} [–]", note: "Distance between the wave-generating boundary and the device, over the wavelength. Grey bars mark studies without the values needed." },
+  { id: "Ddp", n: 11, title: "Characteristic dimension over particle size", y: "{D̄}/Δ{p} [–]", note: "Characteristic dimension of the device over the particle size, by device group. Grey bars mark studies without the values needed." },
+];
+state.fig = "c0";
+/* Mathematical labels. Markup: {x} italic, _{x} subscript, anything else upright.
+   e.g. "{h}/Δ{p}", "{H}_{i}/Δ{p}", "{c}_{0}/{v}_{max}" */
+const MATH_FONT = '"Times New Roman", "STIX Two Text", "Cambria Math", serif';
+function mathParts(markup) {
+  const parts = [];
+  const re = /_\{([^}]*)\}|\{([^}]*)\}|([^{_]+|_)/g;
+  let m;
+  while ((m = re.exec(markup))) {
+    if (m[1] !== undefined) parts.push({ text: m[1], sub: true, italic: /^[A-Za-zα-ω]$/.test(m[1]) });   // digits upright
+    else if (m[2] !== undefined) parts.push({ text: m[2], italic: true });
+    else parts.push({ text: m[3] });
+  }
+  return parts;
+}
+function mathSVG(textSel, markup, size = 15) {          // into an SVG <text>
+  textSel.attr("font-family", MATH_FONT).attr("font-size", size);
+  let down = false;
+  mathParts(markup).forEach(p => {
+    const t = textSel.append("tspan").text(p.text).attr("font-style", p.italic ? "italic" : "normal");
+    if (p.sub && !down) { t.attr("dy", "0.32em").attr("font-size", size * 0.72); down = true; }
+    else if (!p.sub && down) { t.attr("dy", "-0.32em"); down = false; }
+    else if (p.sub) t.attr("font-size", size * 0.72);
+  });
+}
+function mathHTML(markup) {                             // as an HTML span
+  const span = el("span", { class: "math" }); span.style.fontFamily = MATH_FONT; span.style.fontSize = "15px";
+  mathParts(markup).forEach(p => {
+    let node = el(p.italic ? "i" : "span", {}, p.text);
+    if (p.sub) { const sub = el("sub"); sub.appendChild(node); node = sub; }
+    span.appendChild(node);
+  });
+  return span;
+}
+
+const envColor = env => cssVar(env === "3-D" ? "--owc" : "--owsc");
+
+function figPicker() {
+  const box = document.getElementById("figpick");
+  box.replaceChildren();
+  FIGURES.forEach(f => {
+    const b = el("button", { class: "chip", "aria-pressed": String(state.fig === f.id) }, `Figure ${f.n}`);
+    b.title = f.title;
+    b.addEventListener("click", () => { state.fig = f.id; render(); });
+    box.appendChild(b);
+  });
+}
+
+function tipOn(event, text) {
+  const tip = document.getElementById("tip");
+  tip.textContent = text; tip.hidden = false;
+  tip.style.left = `${event.clientX + 12}px`; tip.style.top = `${event.clientY + 12}px`;
+}
+function tipOff() { document.getElementById("tip").hidden = true; }
+
+function renderFigures() {
+  figPicker();
+  const fig = FIGURES.find(f => f.id === state.fig);
+  document.getElementById("chart-title").textContent = `Figure ${fig.n} of the review: ${fig.title}`;
+  document.getElementById("note").textContent = fig.note;
+  const chart = document.getElementById("chart");
+  chart.replaceChildren();
+  const width = Math.max(chart.clientWidth, 320), height = 440;
+  const m = { top: 20, right: 24, bottom: 46, left: 62 };
+  const svg = d3.select(chart).append("svg").attr("viewBox", `0 0 ${width} ${height}`);
+  clearOnBackground(svg);
+  const marks = [];                                     // [selection, tag] for highlighting
+  const hook = (sel) => sel.attr("class", "mark")
+    .on("mouseenter", (e, d) => tipOn(e, byTag.get(d.tag).label))
+    .on("mousemove", (e, d) => tipOn(e, byTag.get(d.tag).label))
+    .on("mouseleave", tipOff)
+    .on("click", (e, d) => select({ type: "study", tag: d.tag }));
+  const axes = (x, y, xLabel, yLabel, yLog) => {
+    const ticks = yLog ? y.ticks(6).filter(t => [1, 2, 5].includes(+t.toExponential(0).split("e")[0])) : y.ticks(6);
+    svg.append("g").attr("class", "year-grid").selectAll("line").data(ticks).join("line")
+      .attr("x1", m.left).attr("x2", width - m.right).attr("y1", d => y(d)).attr("y2", d => y(d));
+    svg.append("g").attr("class", "axis").attr("transform", `translate(0,${height - m.bottom})`).call(d3.axisBottom(x).ticks(8));
+    svg.append("g").attr("class", "axis").attr("transform", `translate(${m.left},0)`)
+      .call(d3.axisLeft(y).tickValues(ticks).tickFormat(d3.format("~g")));
+    const xl = svg.append("text").attr("x", (m.left + width - m.right) / 2).attr("y", height - 8).attr("text-anchor", "middle");
+    if (xLabel.includes("{")) mathSVG(xl, xLabel); else xl.attr("font-size", 13).text(xLabel);
+    mathSVG(svg.append("text").attr("transform", `translate(18,${(height - m.bottom + m.top) / 2}) rotate(-90)`)
+      .attr("text-anchor", "middle"), yLabel);
+  };
+  const box = document.getElementById("legend");
+  box.replaceChildren();
+  const key = (colour, text, symbol = d3.symbolCircle, hollow = false) => {
+    const item = el("span");
+    const s = d3.select(item).append("svg").attr("width", 14).attr("height", 14);
+    s.append("path").attr("transform", "translate(7,7)").attr("d", d3.symbol(symbol, 60)())
+      .attr("fill", hollow ? "none" : colour).attr("stroke", colour).attr("stroke-width", 1.5);
+    item.appendChild(text.includes("{") ? mathHTML(text) : document.createTextNode(text)); box.appendChild(item);
+  };
+
+  if (fig.id === "c0") {
+    const rows = studies.filter(s => s.fig.c0);
+    const x = d3.scaleLinear().domain([0, d3.max(rows, s => s.fig.c0[0]) * 1.08]).nice().range([m.left, width - m.right]);
+    const y = d3.scaleLinear().domain([0, d3.max(rows, s => s.fig.c0[1]) * 1.08]).nice().range([height - m.bottom, m.top]);
+    const colour = d3.scaleSequential(d3.interpolateCool).domain([0, 100]).clamp(true);
+    axes(x, y, "{k}{h}_{0}", "{H}_{i}/{h}_{0}", false);
+
+    // Isolines of sqrt(g h)/v_max, as in pre_c0.m: second-order Stokes velocity at the free
+    // surface, with h = 1 (the ratio depends only on kh and H/h)
+    const [kx0, kx1] = x.domain(), [hy0, hy1] = y.domain();
+    const nx = 160, ny = 120, grid = new Array(nx * ny);
+    for (let j = 0; j < ny; j++) {
+      for (let i = 0; i < nx; i++) {
+        const kh = Math.max(0.02, kx0 + (kx1 - kx0) * i / (nx - 1));
+        const H = Math.max(0.005, hy0 + (hy1 - hy0) * j / (ny - 1));
+        const omega = Math.sqrt(9.81 * kh * Math.tanh(kh)), T = 2 * Math.PI / omega, L = 2 * Math.PI / kh;
+        const c1 = H * 9.81 * T / (2 * L);
+        const c2 = 0.75 * (Math.PI * H / L) ** 2 * (L / T) / Math.sinh(kh) ** 4 * Math.cosh(2 * kh);
+        grid[j * nx + i] = Math.sqrt(9.81) / (c1 + c2);
+      }
+    }
+    const levels = [3, 5, 10, 20, 50];
+    const iso = svg.append("g").attr("class", "isolines");
+    const toXY = ([px, py]) => [x(kx0 + (kx1 - kx0) * px / (nx - 1)), y(hy0 + (hy1 - hy0) * py / (ny - 1))];
+    const onEdge = ([px, py]) => px <= 0.51 || py <= 0.51 || px >= nx - 1.51 || py >= ny - 1.51;
+    const line = d3.line();
+    d3.contours().size([nx, ny]).thresholds(levels)(grid).forEach(c => {
+      // contour rings are closed along the plot edges: keep only the parts inside
+      c.coordinates.flat(1).forEach(ring => {
+        let run = [];
+        const flush = () => {
+          if (run.length > 1) iso.append("path").attr("d", line(run.map(toXY))).attr("fill", "none")
+            .attr("stroke", cssVar("--muted")).attr("stroke-width", 0.9).attr("stroke-opacity", 0.7);
+          run = [];
+        };
+        ring.forEach(pt => { if (onEdge(pt)) flush(); else run.push(pt); });
+        flush();
+      });
+      // label at the right-most point of the line that lies inside the plot
+      const pts = c.coordinates.flat(2).map(([px, py]) => [x(kx0 + (kx1 - kx0) * px / (nx - 1)), y(hy0 + (hy1 - hy0) * py / (ny - 1))])
+        .filter(([X, Y]) => X > m.left + 20 && X < width - m.right - 20 && Y > m.top + 10 && Y < height - m.bottom - 10);
+      if (!pts.length) return;
+      const [X, Y] = pts.reduce((a, b) => (b[0] > a[0] ? b : a));
+      iso.append("text").attr("x", X - 4).attr("y", Y - 4).attr("text-anchor", "end").attr("font-size", 11)
+        .attr("class", "label").style("font-weight", 400).text(c.value);
+    });
+    const dots = svg.append("g").selectAll("circle").data(rows.map(s => ({ tag: s.tag, v: s.fig.c0 }))).join("circle")
+      .attr("cx", d => x(d.v[0])).attr("cy", d => y(d.v[1])).attr("r", 6)
+      .attr("fill", d => colour(d.v[2])).attr("stroke", cssVar("--ink")).attr("stroke-width", 0.6).call(hook);
+    marks.push(dots);
+    const item = el("span");
+    const s = d3.select(item).append("svg").attr("width", 120).attr("height", 12);
+    const grad = s.append("defs").append("linearGradient").attr("id", "c0grad");
+    d3.range(0, 1.01, 0.1).forEach(t => grad.append("stop").attr("offset", t).attr("stop-color", colour(t * 100)));
+    s.append("rect").attr("width", 120).attr("height", 12).attr("fill", "url(#c0grad)");
+    item.appendChild(mathHTML("{c}_{0}/{v}_{max}"));
+    item.appendChild(document.createTextNode(", from low to ≥ 100"));
+    box.appendChild(item);
+    const isoKey = el("span");
+    isoKey.appendChild(el("span", { class: "line-sample" }));
+    isoKey.appendChild(document.createTextNode("Isolines of "));
+    isoKey.appendChild(mathHTML("√({g}{h}_{0})/{v}_{max}"));
+    box.appendChild(isoKey);
+  } else {
+    const n = studies.length;
+    const x = d3.scaleLinear().domain([0, n + 1]).range([m.left, width - m.right]);
+    let get, style, yDomain;
+    if (fig.id === "visc") {
+      const pts = studies.filter(s => s.fig.visc && s.fig.visc[1]).map(s => s.fig.visc[1]);
+      yDomain = [Math.min(0.0003, d3.min(pts)), Math.max(0.08, d3.max(pts))];
+    } else {
+      const pts = studies.flatMap(s => s.fig[fig.id] || []).filter(v => v > 0);
+      yDomain = [d3.min(pts) / 1.4, d3.max(pts) * 1.4];
+    }
+    const y = d3.scaleLog().domain(yDomain).range([height - m.bottom, m.top]);
+    axes(x, y, "Publication Tag", fig.y, true);
+    const [y0, y1] = y.range();
+    const groups = { OWSC: "--owsc", TBW: "--owsc", PA: "--pa", TMP: "--pa", OWC: "--owc", WA: "--wa", OWEC: "--owec" };
+
+    const series = [], bars = [], dashed = [];
+    studies.forEach(s => {
+      const f = s.fig;
+      if (fig.id === "visc") {
+        if (!f.visc) { bars.push({ tag: s.tag }); return; }
+        const [kind, value] = f.visc;
+        if (kind === "inv") { dashed.push({ tag: s.tag }); return; }
+        const colour = cssVar(kind === "art" ? "--owc" : "--owsc"), symbol = kind === "art" ? d3.symbolSquare : d3.symbolCircle;
+        if (value) series.push({ tag: s.tag, v: [value, value], colour, symbol });
+        else series.push({ tag: s.tag, v: kind === "art" ? [0.005, 0.05] : [0.0005, 0.002], colour, symbol, range: true });
+        return;
+      }
+      const v = f[fig.id];
+      if (!v) { bars.push({ tag: s.tag }); return; }
+      let colour = envColor(f.env), symbol = d3.symbolCircle, hollow = false;
+      if (fig.id === "h") {
+        symbol = f.kernel === "Cubic" ? d3.symbolTriangle : f.kernel === "Quintic" ? d3.symbolCircle : d3.symbolDiamond;
+        hollow = f.env === "2-D";
+      }
+      if (fig.id === "Ddp") colour = cssVar(groups[f.type] || "--other");
+      series.push({ tag: s.tag, v, colour, symbol, hollow });
+    });
+
+    svg.append("g").selectAll("rect").data(bars).join("rect").attr("class", "nodata")
+      .attr("x", d => x(d.tag) - 2.5).attr("width", 5).attr("y", y1).attr("height", y0 - y1);
+    const dash = svg.append("g").selectAll("line").data(dashed).join("line")
+      .attr("x1", d => x(d.tag)).attr("x2", d => x(d.tag)).attr("y1", y1).attr("y2", y0)
+      .attr("stroke", cssVar("--pa")).attr("stroke-width", 2.5).attr("stroke-dasharray", "5 4").call(hook);
+    const lines = svg.append("g").selectAll("line").data(series.filter(d => d.v[0] !== d.v[1])).join("line")
+      .attr("x1", d => x(d.tag)).attr("x2", d => x(d.tag)).attr("y1", d => y(d.v[0])).attr("y2", d => y(d.v[1]))
+      .attr("stroke", d => d.colour).attr("stroke-width", d => d.range ? 4 : 1.8).call(hook);
+    const pts = svg.append("g").selectAll("path").data(series.filter(d => !d.range).flatMap(d =>
+        (d.v[0] === d.v[1] ? [d.v[0]] : d.v).map(val => ({ ...d, val })))).join("path")
+      .attr("transform", d => `translate(${x(d.tag)},${y(d.val)})`).attr("d", d => d3.symbol(d.symbol, 52)())
+      .attr("fill", d => d.hollow ? cssVar("--surface") : d.colour).attr("stroke", d => d.colour).attr("stroke-width", 1.4).call(hook);
+    marks.push(dash, lines, pts);
+
+    if (fig.id === "h") {
+      key(cssVar("--owc"), "3-D, Quintic"); key(cssVar("--owc"), "3-D, Cubic", d3.symbolTriangle);
+      key(cssVar("--owsc"), "2-D, Quintic", d3.symbolCircle, true); key(cssVar("--owsc"), "2-D, Cubic", d3.symbolTriangle, true);
+      key(cssVar("--owc"), "Other kernel", d3.symbolDiamond);
+    } else if (fig.id === "visc") {
+      key(cssVar("--owc"), "{α}_{w}", d3.symbolSquare); key(cssVar("--owsc"), "{μ}");
+      key(cssVar("--pa"), "Inviscid (dashed line)");
+    } else if (fig.id === "Ddp") {
+      [["OWSC+TBW", "--owsc"], ["PA+TMP", "--pa"], ["OWC", "--owc"], ["WA", "--wa"], ["OWEC", "--owec"]]
+        .forEach(([t, c]) => key(cssVar(c), t));
+    } else {
+      key(cssVar("--owc"), "3-D"); key(cssVar("--owsc"), "2-D");
+    }
+  }
+  box.appendChild(el("span", {}, "Hover a point for the study; click for its details."));
+
+  applyFocus = () => {
+    const sel = state.selected && state.selected.type === "study" ? state.selected.tag : null;
+    marks.forEach(m => m.classed("selected-mark", d => d.tag === sel)
+                      .style("opacity", d => sel === null || d.tag === sel ? null : 0.35));
+  };
+  applyFocus();
+}
+
+function render() {
+  if (simulation) simulation.stop();
+  const view = VIEWS[state.view];
+  const spec = view.build();
+  document.getElementById("fig-num").textContent = state.view === "figures"
+    ? "From the paper" : `Map ${["validation", "models", "references", "citations"].indexOf(state.view) + 1}`;
+  document.getElementById("chart-title").textContent = view.title;
+  const source = document.getElementById("source");
+  source.replaceChildren(el("strong", {}, "Source: "), document.createTextNode(view.source));
+  document.getElementById("note").textContent = spec.note;
+  const toggleWrap = document.getElementById("toggle-wrap");
+  toggleWrap.hidden = !view.singlesText || spec.empty;
+  document.getElementById("toggle-text").textContent = view.singlesText || "";
+  document.getElementById("toggle").checked = !!state.toggles[state.view];
+  document.getElementById("chips").hidden = state.view !== "references" || spec.empty;
+  applyFocus = null;
+  if (spec.empty) {
+    const chart = document.getElementById("chart");
+    chart.replaceChildren(el("p", { class: "empty-state" },
+      "No reference data yet. Add scopus_references.csv (a Scopus export of the included studies with their references) and run build_site.py again."));
+    document.getElementById("legend").replaceChildren();
+    return;
+  }
+  document.getElementById("figpick").hidden = state.view !== "figures";
+  tipOff();
+  if (state.view === "figures") renderFigures();
+  else if (state.view === "citations") renderTimeline();
+  else if (state.view === "references") renderExplorer(spec);
+  else renderHubMap(spec, view);
+}
+
+function show(view) {
+  if (DATA.figuresOnly) view = "figures";
+  if (DATA.noFigures && view === "figures") view = "validation";
+  if (!VIEWS[view]) view = "validation";
+  if (!VIEWS[view]) view = DATA.noFigures ? "validation" : "figures";
+  state.view = view;
+  if (state.selected && state.selected.type === "hub" && !(view === "references" && state.selected.hub.kind === "reference")) {
+    state.selected = null; renderCard();
+  }
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === view)));
+  render();
+  renderCard();
+}
+document.querySelectorAll("nav button").forEach(b => b.addEventListener("click", () => {
+  if (location.hash !== "#" + b.dataset.view) location.hash = b.dataset.view; else show(b.dataset.view);
+}));
+document.getElementById("toggle").addEventListener("change", e => { state.toggles[state.view] = e.target.checked; render(); });
+window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+let resizeTimer;
+window.addEventListener("resize", () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(render, 200); });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+
+renderCard();
+show(DATA.figuresOnly ? "figures" : (location.hash.slice(1) || "figures"));
+</script>
+</body>
+</html>
